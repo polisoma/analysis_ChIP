@@ -338,6 +338,39 @@ for motif in `ls -1 $folderMotifs `; do
   echo -en "$name\t$number\n" >> motifs/counts.differential.txt
 done
 
+# do the same for negatives used for dreme de novo
+
+
+screen -R motifs
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+
+# take the same number of negatives as positives (seems like A does it this way)
+shuf -n 156 dreme/negative.txt > dreme/negative156.txt
+negative=dreme/negative156.txt
+folderMotifs=~/data/data_genomes/motifs/uniprobe/mast_p03/hg19
+
+rm motifs/counts.negative.txt 
+touch motifs/counts.negative.txt
+
+# negatives are expanded to be 500 bp in length
+# take the same number of negatives as positives (seems like A does it this way)
+# good idea to do the same for positives - expand to a certain length [not done yet]
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  echo $name
+  number=$(bedtools intersect -u -a <(awk -vOFS="\t" '($3-$2<=500){print $1,$2-int((500-($3-$2))/2),$3+int((500-($3-$2))/2),"NAME","1"}' $negative | sort -k1,1 -k2,2n) -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> motifs/counts.negative.txt
+done
+
+# calculating enrichments and p-values
+
+totalDiff=$(awk 'END{print NR}' macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed)
+totalNeg=$(awk 'END{print NR}' dreme/negative156.txt)
+
+awk -vOFS="\t" -vFile="motifs/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],$2,D,N}' motifs/counts.negative.txt | hyper.R -i - > motifs/counts.hyper.txt
+
+
+#################################
 
 
 
