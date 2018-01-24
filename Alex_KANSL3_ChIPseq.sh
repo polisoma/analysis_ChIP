@@ -266,6 +266,7 @@ bedtools getfasta -fi $g -s -bed <(awk -vWIN=$WIN '{print $1"\t"$2-WIN"\t"$3+WIN
 folder=dreme/KANSL3_v1; mkdir -p $folder
 dreme -png -oc $folder -p dreme/KANSL3_only_peaks.fa -n dreme/negative_win100.fa -e 0.05
 
+
 ######################## data from Asifa #################
 track type=bigWig name="KANSL3_rep2_mES.bw" description="KANSL3 rep2 mES" bigDataUrl=https://bricweb.sund.ku.dk/bric-data/daria/published_data/GSM1251952_NSL3B_mlES_To1x.bw 
 track type=bigWig name="KANSL3_rep1_mES.bw" description="KANSL3 rep1 mES" bigDataUrl=https://bricweb.sund.ku.dk/bric-data/daria/published_data/GSM1251951_NSL3A_mlES_To1x.bw
@@ -318,6 +319,44 @@ for sample in SRR1258425 SRR1258426 SRR1258415 SRR1258416 SRR1258427 SRR1258428 
   samtools index ~/data/temp_NOBACKUP/${sample}.bam
 done
 
+# after everything is done: move and remove files
+mkdir -p ~/data/published_data/mES/Asifa_KANSL3_mES/bam 
+folder=~/data/published_data/mES/Asifa_KANSL3_mES/bam 
+
+for sample in SRR1258425 SRR1258426 SRR1258415 SRR1258416 SRR1258427 SRR1258428 SRR1258433 SRR1258434; do
+mv ~/data/temp_NOBACKUP/${sample}.bam  $folder/.
+mv ~/data/temp_NOBACKUP/${sample}.bam.bai  $folder/.
+done 
+
+for sample in SRR1258425 SRR1258426 SRR1258415 SRR1258416 SRR1258427 SRR1258428 SRR1258433 SRR1258434; do
+rm ~/data/temp_NOBACKUP/${sample}.sam ~/data/temp_NOBACKUP/${sample}_nonSorted.bam
+done
+
+######## peak calling with macs2 
+
+# giving proper names to files and making soft links
+mkdir -p bam/links
+for sample in SRR1258425 SRR1258426 SRR1258415 SRR1258416 SRR1258427 SRR1258428 SRR1258433 SRR1258434; do
+  name=$(awk -vS=$sample '($1==S){print $2}' SAMPLES.txt)
+  ln -s /NextGenSeqData/project-data/daria/published_data/mES/Asifa_KANSL3_mES/bam/$sample.bam /NextGenSeqData/project-data/daria/published_data/mES/Asifa_KANSL3_mES/bam/links/$name.bam
+done
+
+
+mkdir -p ~/data/published_data/mES/Asifa_KANSL3_mES/macs2
+screen -R macs
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/
+
+for pair in KANSL3_mES_rep1-input_mES_rep1 KANSL3_mES_rep2-input_mES_rep2 KANSL3_NPC_rep1-input_NPC_rep1 KANSL3_NPC_rep2-input_NPC_rep2 ; do
+   exp=$(echo $pair | awk '{split($1,a,"-");print a[1]}')
+   input=$(echo $pair | awk '{split($1,a,"-");print a[2]}')
+   echo -en "$exp\t$input"
+   macs2 callpeak -t bam/links/$exp.bam -c bam/links/$input.bam -f BAM -n ${exp}_${input} --outdir macs2 --call-summits -g hs --keep-dup 1
+done
+
+
+
+
+
 ######################## motif analysis with uniprobe hg19
 
 # will have to overlap $peaks with all mapped motifs
@@ -367,8 +406,11 @@ done
 totalDiff=$(awk 'END{print NR}' macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed)
 totalNeg=$(awk 'END{print NR}' dreme/negative156.txt)
 
-awk -vOFS="\t" -vFile="motifs/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],$2,D,N}' motifs/counts.negative.txt | hyper.R -i - > motifs/counts.hyper.txt
+awk -vOFS="\t" -vFile="motifs/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/counts.negative.txt | hyper.R -i - > motifs/counts.hyper.txt
 
+# conclusion: 
+# regadless the number of negatives, nothing is significant
+# maybe too few motifs (180) and not representative 
 
 #################################
 
