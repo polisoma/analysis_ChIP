@@ -353,6 +353,74 @@ for pair in KANSL3_mES_rep1-input_mES_rep1 KANSL3_mES_rep2-input_mES_rep2 KANSL3
    macs2 callpeak -t bam/links/$exp.bam -c bam/links/$input.bam -f BAM -n ${exp}_${input} --outdir macs2 --call-summits -g hs --keep-dup 1
 done
 
+# calling peaks on merged replicates
+mkdir -p ~/data/published_data/mES/Asifa_KANSL3_mES/macs2
+screen -R macs
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/
+
+macs2 callpeak -t bam/links/KANSL3_mES_rep1.bam bam/links/KANSL3_mES_rep2.bam -c bam/links/input_mES_rep1.bam bam/links/input_mES_rep2.bam -f BAM -n KANSL3_mES_merged --outdir macs2 --call-summits -g hs --keep-dup 1 &
+
+macs2 callpeak -t bam/links/KANSL3_NPC_rep1.bam bam/links/KANSL3_NPC_rep2.bam -c bam/links/input_NPC_rep1.bam bam/links/input_NPC_rep2.bam -f BAM -n KANSL3_NPC_merged --outdir macs2 --call-summits -g hs --keep-dup 1 &
+
+######
+# overlapping peaks from 2 reps and thresholding to get the final set
+
+#cd ~/data/published_data/mES/Asifa_KANSL3_mES/macs2
+#awk '($1!="#" && $1!="" && NR>1)' KANSL3_mES_rep1_input_mES_rep1_peaks.xls | wc -l # 14165
+#wk '($1!="#" && $1!="" && NR>1)' KANSL3_mES_rep2_input_mES_rep2_peaks.xls | wc -l # 12704
+
+# only of rep1 overlaps with rep2, no matter how large is the overlap
+# 15585 loj
+# threshold 6: 3332, still some peaks so-so
+#bedtools intersect -loj \
+#-a <(awk '($1!="#" && $1!="" && NR>1)' KANSL3_mES_rep1_input_mES_rep1_peaks.xls) \
+#-b <(awk '($1!="#" && $1!="" && NR>1)' KANSL3_mES_rep2_input_mES_rep2_peaks.xls) | awk '($8>=6 && $18>=6)' 
+# still gettting strange empty peaks: chr19 4078222 4078579 with high enrichment
+# better to threshold on fold enrichments for both replicates
+
+
+# to get a final peak based on both replicates (w/o merging them) decided to use only summits, extend to 200 bp and threshold (>=7) before overlaping 
+# ideally: merge replicates and re-call peaks
+
+#bedtools intersect -loj \
+#-a <(awk -vOFS="\t" '($5>=7){print $1,$2-100,$3+100,$5}' KANSL3_mES_rep1_input_mES_rep1_summits.bed) \
+#-b <(awk -vOFS="\t" '($5>=7){print $1,$2-100,$3+100,$5}' KANSL3_mES_rep2_input_mES_rep2_summits.bed) |  \
+#awk '($5!="."){if($2<$6){summit=$2+100+int(($6-$2)/2)}else{summit=$6+100+int(($2-$6)/2)};print $1,summit,summit+1}' > KANSL3_mES_rep12.summits.txt
+
+#bedtools intersect -loj \
+#-a <(awk -vOFS="\t" '($5>=7){print $1,$2-100,$3+100,$5}' KANSL3_NPC_rep1_input_NPC_rep1_summits.bed) \
+#-b <(awk -vOFS="\t" '($5>=7){print $1,$2-100,$3+100,$5}' KANSL3_NPC_rep2_input_NPC_rep2_summits.bed) |  \
+#awk '($5!="."){if($2<$6){summit=$2+100+int(($6-$2)/2)}else{summit=$6+100+int(($2-$6)/2)};print $1,summit,summit+1}' > KANSL3_NPC_rep12.summits.txt
+
+# overlap bw NPC and mES 
+
+#bedtools intersect -u \
+#-a <(awk -vOFS="\t" '{print $1,$2-250,$3+250}' KANSL3_mES_rep12.summits.txt) \
+#-b <(awk -vOFS="\t" '{print $1,$2-250,$3+250}' KANSL3_NPC_rep12.summits.txt) | wc -l #2466 
+
+####### numbers of overlaps for replicates with the same windows
+bedtools intersect -u \
+-a <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_mES_rep1_input_mES_rep1_summits.bed) \
+-b <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_mES_rep2_input_mES_rep2_summits.bed) |  wc -l 
+
+bedtools intersect -u \
+-a <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_NPC_rep1_input_NPC_rep1_summits.bed) \
+-b <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_NPC_rep2_input_NPC_rep2_summits.bed) |  wc -l 
+
+####### overlaps mES and NPCs
+
+# 6245; mES 9461; NPC 13156
+bedtools intersect -u \
+-a <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_mES_merged_summits.bed) \
+-b <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_NPC_merged_summits.bed) |  wc -l 
+
+
+
+###### overlap with TSS_mouse FANTOME5 mm9
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/macs2
+
+CAGE=~/data/published_data/FANTOM5/TSS_mouse.bed.gz
+
 
 
 
@@ -411,6 +479,44 @@ awk -vOFS="\t" -vFile="motifs/counts.differential.txt" -vD=$totalDiff -vN=$total
 # conclusion: 
 # regadless the number of negatives, nothing is significant
 # maybe too few motifs (180) and not representative 
+
+
+#### HOCOMOCO v11 core set
+ 
+
+screen -R motifs
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+mkdir -p motifs/HOCOMOCOv11
+
+peaks=macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed
+negative=dreme/negative.txt
+folderMotifs=~/data/data_genomes/motifs/HOCOMOCOv11/mast_p03/hg19
+
+rm motifs/HOCOMOCOv11/counts.differential.txt 
+touch motifs/HOCOMOCOv11/counts.differential.txt
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  #echo $name
+  number=$(bedtools intersect -u -a $peaks -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> motifs/HOCOMOCOv11/counts.differential.txt
+done &
+
+rm motifs/HOCOMOCOv11/counts.negative.txt 
+touch motifs/HOCOMOCOv11/counts.negative.txt
+
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  #echo $name
+  number=$(bedtools intersect -u -a <(awk -vOFS="\t" '($3-$2<=500){print $1,$2-int((500-($3-$2))/2),$3+int((500-($3-$2))/2),"NAME","1"}' $negative | sort -k1,1 -k2,2n) -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> motifs/HOCOMOCOv11/counts.negative.txt
+done &
+
+
+totalDiff=$(awk 'END{print NR}' macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed)
+totalNeg=$(awk 'END{print NR}' dreme/negative.txt)
+
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.negative.txt | hyper.R -i - | head
+
 
 #################################
 
