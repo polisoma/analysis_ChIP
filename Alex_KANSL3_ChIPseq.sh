@@ -126,7 +126,7 @@ https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/T-KANSL3_T-INPUT_peaks.
 
 https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/diff_c1_vs_c2_c3.0_cond2.browser.bed
 
-# tarcks
+# tracks
 track type=bigWig name="K-KANSL3.bw" description="K-KANSL3" bigDataUrl=https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/K-KANSL3.bw
 track type=bigWig name="T-KANSL3.bw" description="T-KANSL3" bigDataUrl=https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/T-KANSL3.bw
 track type=bigWig name="T-INPUT.bw" description="T-INPUT" bigDataUrl=https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/T-INPUT.bw
@@ -201,25 +201,84 @@ awk -vOFS="\t" '(NR>1){print $0}' FANTOM_table_THP1.txt | sort -k5,5 -k7,7gr | a
 
 #bedintersect somehow is not so good
 cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+
 fileA=macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed
 fileB=~/temp_NOBACKUP/FANTOM_table_THP1.rank.txt
 bedtools intersect -loj -a <(awk -vOFS="\t" '{print $1,$2,$3}' $fileA | sort -k1,1 -k2,2n) -b <(awk -vOFS="\t" '(NR>1){print $0}' $fileB | sort -k1,1 -k2,2n) | awk '($4=="."){print $0}' | wc -l 
 
 # closest FANTOM5 peaks --> best solution, better than intersect
 # if overlaps several --> will report all
+# temp file does not have a header! mistake!!!!
+# NO HEADER! 
 bedtools closest -a <(awk -vOFS="\t" '{print $1,$2,$3}' $fileA | sort -k1,1 -k2,2n) -b <(awk -vOFS="\t" '(NR>1){print $0}' $fileB | sort -k1,1 -k2,2n) -d | awk '($8=="NA")'
 
 bedtools closest -a <(awk -vOFS="\t" '{print $1,$2,$3}' $fileA | sort -k1,1 -k2,2n) -b <(awk -vOFS="\t" '(NR>1){print $0}' $fileB | sort -k1,1 -k2,2n) -d | awk '{print $8}' | uniq > /tmp/genes.txt
 
+# overlapping CAGE peaks: distribution compare to other CAGE peaks of expressed genes
+fileA=macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed
+fileB=~/temp_NOBACKUP/FANTOM_table_THP1.rank.txt
+
+awk '{print $7}' $fileB | median.R -i - -n -q # most of the genes are not expressed
+awk '($7>1){print $7}' $fileB | median.R -i - -n -q # median 5.22
+awk '($7!=0){print $7}' $fileB | median.R -i - -n -q $ median 1.23
+
+# $10 column - CAGE from fresh THP1
+# distance shoudl be <=200 --> consider as an overlap
+bedtools closest -a <(awk -vOFS="\t" '{print $1,$2,$3}' $fileA | sort -k1,1 -k2,2n) -b <(awk -vOFS="\t" '{print $0}' $fileB | sort -k1,1 -k2,2n) -d | awk '($14<200){print $10}' | median.R -i - -n -q # median 4.45 -- highly expressed
+
+bedtools closest -a <(awk -vOFS="\t" '{print $1,$2,$3}' $fileA | sort -k1,1 -k2,2n) -b <(awk -vOFS="\t" '{print $0}' $fileB | sort -k1,1 -k2,2n) -d | awk '($14<200){print $10}' > /tmp/overlap.txt
+
+# random CAGE peaks and values in CAGE fresh THP1
+awk '($7!=0){print $7}' $fileB  | shuf -n 1000 > /tmp/random.txt
+
+# making plots in R
+R
+source("~/utils/Rutils/boxplot95.R")
+
+t1<-read.table("~/temp_NOBACKUP/FANTOM_table_THP1.rank.txt")
+t2<-read.table("/tmp/overlap.txt")
+t3<-read.table("/tmp/random.txt")
+
+par(mfrow=c(1,3)) 
+boxplot95(log(t1[t1[,7]!=0,7])/log(2),frame=F,ylim=c(-3,6))
+boxplot95(log(t2)/log(2),frame=F,ylim=c(-3,6))
+boxplot95(log(t3)/log(2),frame=F,ylim=c(-3,6))
+
+q()
+
+# confirmation CAGE observation with RNA-seq data
+# taking genes where peaks are <200 bp from CAGE
+
+fileA=macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed
+fileB=~/temp_NOBACKUP/FANTOM_table_THP1.rank.txt
+bedtools closest -a <(awk -vOFS="\t" '{print $1,$2,$3}' $fileA | sort -k1,1 -k2,2n) -b <(awk -vOFS="\t" '{print $0}' $fileB | sort -k1,1 -k2,2n) -d | awk '($14<200){print $8}' | uniq > /tmp/genes.txt
+
+awk -vOFS="\t" -vFile="/tmp/genes.txt" 'BEGIN{while((getline<File)>0){gene[$1]=$1}}{if($1 in gene){print $1,($15+$16+$17)/3}}' ../../RNA-seq/data_May2017/RPKMs/all_counts_rpkm.featureCount.final.txt | cut -f2 | median.R -i - -q -n # 0  4.4182  median=8.48329 16.65335  530.967
+
+awk '(($15+$16+$17)/3!=0){print ($15+$16+$17)/3}' ../../RNA-seq/data_May2017/RPKMs/all_counts_rpkm.featureCount.final.txt | median.R -i - -q -n #median=0.511658
+
+# should also take closest TSS instead of relying on CAGE data assignment
+
+R
+source("~/utils/Rutils/boxplot95.R")
+
+t1<-read.table("/tmp/rna2.txt")
+t2<-read.table("/tmp/rna1.txt")
+
+par(mfrow=c(1,3)) 
+boxplot95(log(t1[,1])/log(2),frame=F,ylim=c(-7,6))
+boxplot95(log(t2[,1])/log(2),frame=F,ylim=c(-7,6))
+
+q()
+
 # overlap of genes with RNA-seq
-#files are in ../../RNA-seq/data_May2017/DESeq2/
+# files are in ../../RNA-seq/data_May2017/DESeq2/
 
 awk -vOFS="\t" -vFile="/tmp/genes.txt" 'BEGIN{while((getline<File)>0){gene[$1]=$1}}{if($2 in gene){print $2,$3,$4,$5,$6,$7,$8}}' ../../RNA-seq/data_May2017/DESeq2/all_experiemnts.deseq2.merged.txt | awk '($3<=0.01 || $5<=0.01 || $7<=0.01)' | head
 
 awk -vOFS="\t" -vFile="/tmp/genes.txt" 'BEGIN{while((getline<File)>0){gene[$1]=$1}}{if($2 in gene){print $2,$3,$4,$5,$6,$7,$8}}' ../../RNA-seq/data_May2017/DESeq2/all_experiemnts.deseq2.merged.txt | awk '($3<=0.01 || $5<=0.01 || $7<=0.01){print $1}' > /tmp/overlap.genes.txt
 
 awk -vOFS="\t" '($3<=0.01 || $5<=0.01 || $7<=0.01){print $2,$3,$4,$5,$6,$7,$8}' ../../RNA-seq/data_May2017/DESeq2/all_experiemnts.deseq2.merged.txt > /tmp/diffregulated.txt
-
 
 # the changes were not so dramatic --> will look at the distribution
 awk -vOFS="\t" '{print $2,$3,$4,$5,$6,$7,$8}' ../../RNA-seq/data_May2017/DESeq2/all_experiemnts.deseq2.merged.txt | awk '($7<=0.01){print $6}' | median.R -i - -q -n
@@ -399,6 +458,8 @@ macs2 callpeak -t bam/links/KANSL3_NPC_rep1.bam bam/links/KANSL3_NPC_rep2.bam -c
 #-b <(awk -vOFS="\t" '{print $1,$2-250,$3+250}' KANSL3_NPC_rep12.summits.txt) | wc -l #2466 
 
 ####### numbers of overlaps for replicates with the same windows
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/macs2
+
 bedtools intersect -u \
 -a <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_mES_rep1_input_mES_rep1_summits.bed) \
 -b <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_mES_rep2_input_mES_rep2_summits.bed) |  wc -l 
@@ -410,19 +471,15 @@ bedtools intersect -u \
 ####### overlaps mES and NPCs
 
 # 6245; mES 9461; NPC 13156
+# with $5>20: 2138 from mES 2592 and NPC 4841
 bedtools intersect -u \
 -a <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_mES_merged_summits.bed) \
 -b <(awk -vOFS="\t" '($5>=7){print $1,$2-250,$3+250}' KANSL3_NPC_merged_summits.bed) |  wc -l 
 
-
-
-###### overlap with TSS_mouse FANTOME5 mm9
-cd ~/data/published_data/mES/Asifa_KANSL3_mES/macs2
-
-CAGE=~/data/published_data/FANTOM5/TSS_mouse.bed.gz
-
-
-
+# overlap between top peaks
+bedtools intersect -u \
+-a <(sort -k5,5gr KANSL3_mES_merged_summits.bed|  awk -vOFS="\t" '(NR<500){print $1,$2-250,$3+250}' ) \
+-b <(sort -k5,5gr KANSL3_NPC_merged_summits.bed|  awk -vOFS="\t" '(NR<500){print $1,$2-250,$3+250}' ) |  wc -l 
 
 
 ######################## motif analysis with uniprobe hg19
@@ -511,31 +568,197 @@ for motif in `ls -1 $folderMotifs `; do
   echo -en "$name\t$number\n" >> motifs/HOCOMOCOv11/counts.negative.txt
 done &
 
-
 totalDiff=$(awk 'END{print NR}' macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed)
 totalNeg=$(awk 'END{print NR}' dreme/negative.txt)
 
-awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.negative.txt | hyper.R -i - | head
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' motifs/HOCOMOCOv11/counts.negative.txt
+
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.negative.txt | hyper.R -i - > /tmp/counts.hyper.txt
+
+# repeat motif search with random negatives (not CAGE)
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017
+
+bedtools random -n 1000 -l 500 -g /home/daria/data/data_genomes/hg19/chrom.sizes.good > dreme/random.bed
+
+screen -R motifs
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+mkdir -p motifs/HOCOMOCOv11
+
+random=dreme/random.bed
+folderMotifs=~/data/data_genomes/motifs/HOCOMOCOv11/mast_p03/hg19
+
+rm motifs/HOCOMOCOv11/counts.random.txt 
+touch motifs/HOCOMOCOv11/counts.random.txt
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  #echo $name
+  number=$(bedtools intersect -u -a $random -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> motifs/HOCOMOCOv11/counts.random.txt
+done &
+
+### counting enrichment relative to random and negative
+
+# for random: need to remove first 2 lines
+totalDiff=$(awk 'END{print NR}' macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed)
+totalNeg=$(awk 'END{print NR}' dreme/random.bed)
+
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' motifs/HOCOMOCOv11/counts.random.txt
+
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.random.txt | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > /tmp/counts.hyper.random.txt
+
+# for negative
+totalDiff=$(awk 'END{print NR}' macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed)
+totalNeg=$(awk 'END{print NR}' dreme/negative.txt)
+
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' motifs/HOCOMOCOv11/counts.negative.txt
+
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.negative.txt | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > /tmp/counts.hyper.negative.txt
+
+# negative vs random
+totalDiff=$(awk 'END{print NR}' dreme/negative.txt)
+totalNeg=$(awk 'END{print NR}' dreme/random.bed)
+
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.negative.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' motifs/HOCOMOCOv11/counts.random.txt
+
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.negative.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.random.txt | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > /tmp/counts.hyper.negVSrandom.txt
 
 
-#################################
+##### checking if the motif analysis working properly with a published dataset
 
+mkdir ~/data/published_data/ReMap2018/
+cd ~/data/published_data/ReMap2018/
 
+wget http://tagc.univ-mrs.fr/remap/download/MACS_lifted_hg19/all_tf/erg/ReMap2_erg_allPeaks_hg19.bed.tar.gz
+gunzip ReMap2_erg_allPeaks_hg19.bed.tar.gz
 
+## testing motif analysis with peaks for K562 cells 
 
+screen -R motifs
+cd ~/data/published_data/ReMap2018/
 
+peaks=all_tf/erg/ReMap2_erg_allPeaks_hg19.bed
+folderMotifs=~/data/data_genomes/motifs/HOCOMOCOv11/mast_p03/hg19
+folder=~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017
 
+rm $folder/test.txt
+touch $folder/test.txt
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  #echo $name
+  number=$(bedtools intersect -u -a <(awk '($4=="GSE23730.erg.k562")' $peaks) -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> $folder/test.txt
+done &
+# test looked very weired, no enrichment for Erg...... 
 
+##### motifs in mouse data
 
+screen -R motifs
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/
 
+peaks=macs2/KANSL3_mES_merged_summits.bed
+folderMotifs=~/data/data_genomes/motifs/HOCOMOCOv11/mast_p03/mm9
+mkdir -p ~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
+folder=~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
 
+f=$folder/counts.mES.txt
+rm $f
+touch $f
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  #echo $name
+  number=$(bedtools intersect -u -a <(awk -vOFS="\t" '($5>=20){print $1,$2-250,$3+250}' $peaks) -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> $f
+done
 
+screen -R random
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/
 
+peaks=macs2/KANSL3_NPC_merged_summits.bed
+folderMotifs=~/data/data_genomes/motifs/HOCOMOCOv11/mast_p03/mm9
+mkdir -p ~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
+folder=~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
 
+f=$folder/counts.NPC.txt
+rm $f
+touch $f
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  #echo $name
+  number=$(bedtools intersect -u -a <(awk -vOFS="\t" '($5>=20){print $1,$2-250,$3+250}' $peaks) -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> $f
+done &
 
+# making random (#2000) and negative controls 
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/
+bedtools random -n 2000 -l 500 -g /home/daria/data/data_genomes/mm9/chrom.sizes.good > motifs_counts/random.bed
 
+screen -R random
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/
 
+peaks=motifs_counts/random.bed
+folderMotifs=~/data/data_genomes/motifs/HOCOMOCOv11/mast_p03/mm9
+mkdir -p ~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
+folder=~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
 
+f=$folder/counts.random.txt
+rm $f
+touch $f
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  #echo $name
+  number=$(bedtools intersect -u -a <(sort -k1,1 -k2,2n $peaks) -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> $f
+done &
+
+# 2000 negative from TSSs: will take random p1 promoters, no data on expression levels in NPC and mES
+# extend to 500 for overlapping
+
+zcat ~/data/published_data/FANTOM5/TSS_mouse.bed.gz | awk -vOFS="\t" '{split($4,a,"@");win=250-int(($3-$2)/2);if(a[1]=="p1" && $1!="chrM"){print $1,$2-win,$3+win}}' | shuf -n 2000 | sort -k1,1 -k2,2n > motifs_counts/negative.txt
+
+screen -R random
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/
+
+peaks=motifs_counts/negative.txt
+folderMotifs=~/data/data_genomes/motifs/HOCOMOCOv11/mast_p03/mm9
+mkdir -p ~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
+folder=~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
+
+f=$folder/counts.negative.txt
+rm $f
+touch $f
+for motif in `ls -1 $folderMotifs `; do
+  name=$(basename $motif .txt.gz)
+  #echo $name
+  number=$(bedtools intersect -u -a <(sort -k1,1 -k2,2n $peaks) -b <(zcat $folderMotifs/$motif) | wc -l)
+  echo -en "$name\t$number\n" >> $f
+done &
+
+#### comparisons
+cd ~/data/published_data/mES/Asifa_KANSL3_mES
+# negative vs random
+totalDiff=$(awk '($5>=20)' macs2/KANSL3_mES_merged_summits.bed | wc -l)
+totalDiffNPC=$(awk '($5>=20)' macs2/KANSL3_NPC_merged_summits.bed | wc -l)
+totalNeg=$(awk 'END{print NR}' motifs_counts/negative.txt)
+totalRand=$(awk 'END{print NR}' motifs_counts/random.bed)
+
+file1=motifs_counts/counts.mES.txt
+file2=motifs_counts/counts.NPC.txt
+file3=motifs_counts/counts.negative.txt
+file4=motifs_counts/counts.random.txt
+
+#awk -vOFS="\t" -vFile=$file1 -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' $file3
+
+awk -vOFS="\t" -vFile=$file1 -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' $file3 | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > motifs_counts/mES_vs_negative.txt
+
+awk -vOFS="\t" -vFile=$file1 -vD=$totalDiff -vN=$totalRand 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' $file4 | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > motifs_counts/mES_vs_rand.txt
+
+awk -vOFS="\t" -vFile=$file2 -vD=$totalDiffNPC -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' $file3 | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > motifs_counts/NPC_vs_negative.txt
+
+awk -vOFS="\t" -vFile=$file2 -vD=$totalDiffNPC -vN=$totalRand 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' $file4 | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > motifs_counts/NPC_vs_rand.txt
+
+awk -vOFS="\t" -vFile=$file3 -vD=$totalNeg -vN=$totalRand 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' $file4 | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > motifs_counts/neg_vs_rand.txt
+
+awk -vOFS="\t" -vFile=$file1 -vD=$totalDiff -vN=$totalDiffNPC 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' $file2 | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > motifs_counts/mES_vs_NPC.txt
 
 
 
