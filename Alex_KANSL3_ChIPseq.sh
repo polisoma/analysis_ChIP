@@ -1840,7 +1840,7 @@ dev.off()
 # manually transfer data to the created folder
 mkdir -p ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018
 cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018
-mkdir -p bam; mkdir -p bw; mkdir -p raw; # raw will contain data from 2 sequencing runs (10.08.18 and 09.09.18)
+mkdir -p bam; mkdir -p bw; mkdir -p raw; mkdir -p raw2 # raw will contain data from 2 sequencing runs (10.08.18 and 09.09.18)
 
 # manually transfering fastq files to the folder raw
 # from the Desktop
@@ -1848,6 +1848,11 @@ mkdir -p bam; mkdir -p bw; mkdir -p raw; # raw will contain data from 2 sequenci
 cd Desktop 
 for f in `ls ARD090918_ChIP-seq-1/FASTQ_Generation_*/ARDseq*/*_R1_001.fastq.gz`; do
   scp -r $f daria@tycho.sund.root.ku.dk:~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/raw/.
+done
+
+cd Desktop 
+for f in `ls ARD100818_ChIP-seq-2/FASTQ_Generation_*/ARDseq*/*_R1_001.fastq.gz`; do
+  scp -r $f daria@tycho.sund.root.ku.dk:~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/raw2/.
 done
 
 # on the server
@@ -1860,25 +1865,70 @@ for f in `ls raw/*_R1_001.fastq.gz`; do
    zcat $f >> $myTemp/$label.merged.fastq
 done
 
+# another sequencing run
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018
+mkdir -p ~/data/temp_NOBACKUP/August2; myTemp=~/data/temp_NOBACKUP/August2
+for f in `ls raw2/*_R1_001.fastq.gz`; do   
+   name=$(echo -en "${f%%.*}" | awk '{split($1,a,"_S"); print a[1]}')
+   label=$(basename $name)
+   echo -en "$label\n"
+   zcat $f >> $myTemp/$label.merged.fastq
+done
+
 # number of reads: 
-myTemp=~/data/temp_NOBACKUP/August
-for f in `ls raw/*_R1_001.fastq.gz`; do
+#myTemp=~/data/temp_NOBACKUP/August
+myTemp=~/data/temp_NOBACKUP/August2
+#rm raw_reads_counts.txt
+for f in `ls $myTemp/*merged.fastq`; do
   name=$(echo -en "${f%%.*}" | awk '{split($1,a,"_S"); print a[1]}')
-  count=$(cat $myTemp/$name.merged.fastq | wc -l)
-  echo -en "$name\t$count\n"
+  label=$(basename $name)
+  count=$(cat $f | wc -l)
+  echo -en "$label\t$count\n"
 done >> raw_reads_counts.txt
 
 screen -R mapping
 # do not have gz files - cat on files 
 # will map to hg19 as all Fantom data is for hg19 + motifs
-cd ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1
-myTemp=~/data/temp_NOBACKUP
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/
+myTemp=~/data/temp_NOBACKUP/August
 hg19=/k/genomes/hg19/index/bowtie_canonical/hg19 # somehow index in my directory was not working
-for name in K3SD2-H3K4me3-1 K3SD2-H3K4me3-2 THP1-H3K4me3-1 THP1-H3K4me3-2 THP1-input; do
-  echo -en $name
-  cat $myTemp/$name.merged.fastq | bowtie -p 5 -q -m 1 -v 3 --sam --best --strata --quiet $hg19 - > $myTemp/$name.sam
+for f in `ls $myTemp/*merged.fastq`; do
+  label=$(basename ${f%%.*})
+  echo -en "$label\n"
+  cat $f | bowtie -p 5 -q -m 1 -v 3 --sam --best --strata --quiet $hg19 - > $myTemp/$label.sam
 done
 
+myTemp=~/data/temp_NOBACKUP/August2
+hg19=/k/genomes/hg19/index/bowtie_canonical/hg19 # somehow index in my directory was not working
+for f in `ls $myTemp/*merged.fastq`; do
+  label=$(basename ${f%%.*})
+  echo -en "$label\n"
+  cat $f | bowtie -p 5 -q -m 1 -v 3 --sam --best --strata --quiet $hg19 - > $myTemp/$label.sam
+done
+
+###### making bam files (duplicates removed)
+### making bam files
+screen -R bam
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/
+myTemp=~/data/temp_NOBACKUP/August
+for f in `ls $myTemp/*sam`; do
+  sample=$(basename ${f%%.*})
+  echo -en "$sample\n"
+  samtools view -Sb $myTemp/${sample}.sam > $myTemp/${sample}_nonSorted.bam
+  samtools sort $myTemp/${sample}_nonSorted.bam > $myTemp/${sample}.bam
+  samtools rmdup -s $myTemp/${sample}.bam $myTemp/${sample}.nodup.bam 
+  samtools index $myTemp/${sample}.nodup.bam
+  rm $myTemp/${sample}.sam $myTemp/${sample}_nonSorted.bam $myTemp/${sample}.bam
+done
+# moving everything to the bam folder
+newFolder=~~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/bam
+myTemp=~/data/temp_NOBACKUP/August
+for f in `ls $myTemp/*sam`; do
+  sample=$(basename ${f%%.*})
+  echo -en "$sample\n"
+  mv $myTemp/${sample}.nodup.bam  $newFolder/.
+  mv $myTemp/${sample}.nodup.bam.bai  $newFolder/.
+done 
 
 
 
