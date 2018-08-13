@@ -598,13 +598,12 @@ done &
 
 ### counting enrichment relative to random and negative
 
-# for random: need to remove first 2 lines
 totalDiff=$(awk 'END{print NR}' macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed)
 totalNeg=$(awk 'END{print NR}' dreme/random.bed)
 
-awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' motifs/HOCOMOCOv11/counts.random.txt
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' motifs/HOCOMOCOv11/counts.random.txt
 
-awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.random.txt | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > /tmp/counts.hyper.random.txt
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.random.txt | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > /tmp/counts.hyper.random.txt
 
 # for negative
 totalDiff=$(awk 'END{print NR}' macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed)
@@ -618,10 +617,141 @@ awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.differential.txt" -vD=$totalDif
 totalDiff=$(awk 'END{print NR}' dreme/negative.txt)
 totalNeg=$(awk 'END{print NR}' dreme/random.bed)
 
-awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.negative.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' motifs/HOCOMOCOv11/counts.random.txt
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.negative.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N,log((diffCounts[$1]/D)/($2/N))/log(2)}' motifs/HOCOMOCOv11/counts.random.txt
 
-awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.negative.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.random.txt | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > /tmp/counts.hyper.negVSrandom.txt
+awk -vOFS="\t" -vFile="motifs/HOCOMOCOv11/counts.negative.txt" -vD=$totalDiff -vN=$totalNeg 'BEGIN{while(getline<File){diffCounts[$1]=$2}}($1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' motifs/HOCOMOCOv11/counts.random.txt | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > /tmp/counts.hyper.negVSrandom.txt
 
+# table for heatmaps: subselect KANSL vs rand motifs based on p-val and enrichment, and negative values for the same motifs --> KANSL vs negatives
+
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+awk '($7<=0.01 && ($6>=log(1.5)/log(2) || $6<=-log(1.5)/log(2))){print $1,$6}' /tmp/counts.hyper.random.txt | awk -vFile="/tmp/counts.hyper.negVSrandom.txt" 'BEGIN{while((getline<File)>0){motif[$1]=$6}}{if($1 in motif){print $1,$2,motif[$1]}else{print $1,$2,"NA"}}'  > /tmp/all.motifs.txt
+
+awk '($7<=0.01){print $1,$6}' /tmp/counts.hyper.negative.txt > /tmp/peaksVSneg.txt
+
+# tables for mouse data: 
+cd ~/data/published_data/mES/Asifa_KANSL3_mES/motifs_counts
+
+awk '($7<=0.01 && ($6>=log(1.5)/log(2) || $6<=-log(1.5)/log(2))){print $1,$6}' mES_vs_negative.txt | awk -vFile="NPC_vs_negative.txt" 'BEGIN{while((getline<File)>0){motif[$1]=$6}}{if($1 in motif){print $1,$2,motif[$1]}else{print $1,$2,"NA"}}'  > /tmp/all.motifs.mm9.txt
+
+# will "center" on mES data
+awk '($7<=0.01 && ($6>=log(1.5)/log(2) || $6<=-log(1.5)/log(2))){print $1,$6}' mES_vs_rand.txt | awk -vFile="NPC_vs_rand.txt" 'BEGIN{while((getline<File)>0){motif[$1]=$6}}{if($1 in motif){print $1,$2,motif[$1]}else{print $1,$2,"NA"}}' | awk -vFile="neg_vs_rand.txt" 'BEGIN{while((getline<File)>0){motif[$1]=$6}}{if($1 in motif){print $1,$2,$3,motif[$1]}else{print $1,$2,$3,"NA"}}'  > /tmp/mES_neg_NPC.motifs.mm9.txt
+
+
+R # heatmaps
+# from here: http://sebastianraschka.com/Articles/heatmaps_in_r.html
+if (!require("gplots")) {
+   install.packages("gplots", dependencies = TRUE)
+   library(gplots)
+   }
+if (!require("RColorBrewer")) {
+   install.packages("RColorBrewer", dependencies = TRUE)
+   library(RColorBrewer)
+   }
+
+my_palette <- colorRampPalette(c("green4","green","white","violet","purple"))(100)
+
+motifs.random<-read.table("/tmp/all.motifs.txt")
+rnames <- motifs.random[,1]                            # assign labels in column 1 to "rnames"
+mat_data <- data.matrix(motifs.random[,2:ncol(motifs.random)])  # transform column 2-5 into a matrix
+rownames(mat_data) <- rnames                  # assign row names
+colnames(mat_data) <- c("KANSL3 vs random","CAGE vs random")
+
+pdf ("~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/plots/KANSL3_CAGE_random.pdf")
+  heatmap.2(mat_data,
+  #cellnote = mat_data,  # same data set for cell labels
+  main = "KANSL3 and CAGE vs random", # heat map title
+  #notecol="black",      # change font color of cell labels to black
+  density.info="none",  # turns off density plot inside color legend
+  trace="none",         # turns off trace lines inside the heat map
+  margins =c(12,9),     # widens margins around plot
+  col=my_palette,       # use on color palette defined earlier
+  #breaks=col_breaks,    # enable color transition at specified limits
+  dendrogram="row",     # only draw a row dendrogram
+  cexCol=1,
+  labRow = FALSE,
+  #Rowv = FALSE, 
+  #Colv = FALSE,
+  ) 
+dev.off()
+
+# heatmap2 takes only 2 columns and 2 rows minimum. Need to trick it by dubplicating matrix
+
+motifs.neg<-read.table("/tmp/peaksVSneg.txt")
+rnames <- motifs.neg[,1]                            # assign labels in column 1 to "rnames"
+mat_data <- data.matrix(motifs.neg[,2:ncol(motifs.neg)])  # transform column 2-5 into a matrix
+rownames(mat_data) <- rnames                  # assign row names
+colnames(mat_data) <- c("KANSL3 vs CAGE") 
+mat_data<-cbind (mat_data, mat_data) 
+
+
+pdf ("~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/plots/KANSL3vsCAGE.pdf")
+  heatmap.2(mat_data,
+  #cellnote = mat_data,  # same data set for cell labels
+  #main = "Correlation", # heat map title
+  #notecol="black",      # change font color of cell labels to black
+  density.info="none",  # turns off density plot inside color legend
+  trace="none",         # turns off trace lines inside the heat map
+  margins =c(12,9),     # widens margins around plot
+  col=my_palette,       # use on color palette defined earlier
+  #breaks=col_breaks,    # enable color transition at specified limits
+  dendrogram="row",     # only draw a row dendrogram
+  Colv="NA",             # turn off column clustering
+  cexCol=1,
+  labRow = FALSE)    
+dev.off()
+
+# heatmaps for mouse data
+motifs.random<-read.table("/tmp/mES_neg_NPC.motifs.mm9.txt")
+rnames <- motifs.random[,1]                            # assign labels in column 1 to "rnames"
+mat_data <- data.matrix(motifs.random[,2:ncol(motifs.random)])  # transform column 2-5 into a matrix
+rownames(mat_data) <- rnames                  # assign row names
+colnames(mat_data) <- c("mES vs random","NPC vs random", "CAGE vs random")
+
+pdf ("~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/plots/mouse_mES_NPC_random.pdf")
+  heatmap.2(mat_data,
+  #cellnote = mat_data,  # same data set for cell labels
+  main = "mES, NPC, negative vs random", # heat map title
+  #notecol="black",      # change font color of cell labels to black
+  density.info="none",  # turns off density plot inside color legend
+  trace="none",         # turns off trace lines inside the heat map
+  margins =c(12,9),     # widens margins around plot
+  col=my_palette,       # use on color palette defined earlier
+  #breaks=col_breaks,    # enable color transition at specified limits
+  dendrogram="row",     # only draw a row dendrogram
+  cexCol=1,
+  labRow = FALSE,
+  #Rowv = FALSE, 
+  #Colv = FALSE,
+  ) 
+dev.off()
+
+#motifs.random<-read.table("/tmp/all.motifs.mm9.txt")
+#rnames <- motifs.random[,1]                            # assign labels in column 1 to "rnames"
+#mat_data <- data.matrix(motifs.random[,2:ncol(motifs.random)])  # transform column 2-5 into a matrix
+#rownames(mat_data) <- rnames                  # assign row names
+#colnames(mat_data) <- c("mES vs CAGE","NPC vs CAGE")
+#mat_data<-rbind (mat_data, mat_data) 
+
+#df ("~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/plots/mES_NPC_negative.pdf")
+ # heatmap.2(mat_data,
+  #cellnote = mat_data,  # same data set for cell labels
+  #main = "mES and NPC vs CAGE", # heat map title
+  #notecol="black",      # change font color of cell labels to black
+  #density.info="none",  # turns off density plot inside color legend
+  #trace="none",         # turns off trace lines inside the heat map
+  #margins =c(12,9),     # widens margins around plot
+  #col=my_palette,       # use on color palette defined earlier
+  #breaks=col_breaks,    # enable color transition at specified limits
+  #dendrogram="row",     # only draw a row dendrogram
+  #cexCol=1,
+  #labRow = FALSE,
+  #Rowv = FALSE, 
+  #Colv = FALSE,
+  ) 
+#dev.off()
+
+
+q()
 
 ##### checking if the motif analysis working properly with a published dataset
 
@@ -759,6 +889,1019 @@ awk -vOFS="\t" -vFile=$file2 -vD=$totalDiffNPC -vN=$totalRand 'BEGIN{while(getli
 awk -vOFS="\t" -vFile=$file3 -vD=$totalNeg -vN=$totalRand 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' $file4 | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > motifs_counts/neg_vs_rand.txt
 
 awk -vOFS="\t" -vFile=$file1 -vD=$totalDiff -vN=$totalDiffNPC 'BEGIN{while(getline<File){diffCounts[$1]=$2}}(NR>2 && $1 in diffCounts){print $1,diffCounts[$1],D,$2,N}' $file2 | hyper.R -i -  | awk '{if($6<$7){p=$6}else{p=$7};print $1,$2,$3,$4,$5,log(($2/$3)/($4/$5))/log(2),p}' > motifs_counts/mES_vs_NPC.txt
+
+###################### H3K4me3 ChIP in WT and KD THP1
+
+# copying all files from Desktop to the server
+
+cd FASTQ_Generation*
+for f in * ; do
+echo -en "$f\n"
+scp $f/ARD*.fastq.gz daria@tycho.sund.root.ku.dk:~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1/raw/.
+done
+
+# on the server
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1
+myTemp=~/data/temp_NOBACKUP
+for f in `ls raw/*_R1_001.fastq.gz`; do   
+   name=$(echo -en "${f%%.*}" | awk '{split($1,a,"_S");split(a[1],n,"ARD-"); print n[2]}')
+   label=$(basename $name)
+   echo -en "$label\n"
+   zcat $f >> $myTemp/$label.merged.fastq
+done
+
+# number of reads: 
+myTemp=~/data/temp_NOBACKUP
+for name in K3SD2-H3K4me3-1 K3SD2-H3K4me3-2 THP1-H3K4me3-1 THP1-H3K4me3-2 THP1-input; do
+   echo -en "$name\n"
+   cat $myTemp/$name.merged.fastq | wc -l
+done
+
+#K3SD2-H3K4me3-1 
+#99107360.00 24776840
+#K3SD2-H3K4me3-2 
+#94385728.00 23596432
+#THP1-H3K4me3-1  
+#103265540.00  25816385
+#THP1-H3K4me3-2  
+#118144520.00  29536130
+#THP1-input  
+#113926784.00  28481696
+
+screen -R mapping
+# do not have gz files - cat on files 
+# will map to hg19 as all Fantom data is for hg19 + motifs
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1
+myTemp=~/data/temp_NOBACKUP
+hg19=/k/genomes/hg19/index/bowtie_canonical/hg19 # somehow index in my directory was not working
+for name in K3SD2-H3K4me3-1 K3SD2-H3K4me3-2 THP1-H3K4me3-1 THP1-H3K4me3-2 THP1-input; do
+  echo -en $name
+  cat $myTemp/$name.merged.fastq | bowtie -p 5 -q -m 1 -v 3 --sam --best --strata --quiet $hg19 - > $myTemp/$name.sam
+done
+
+### making bam files
+myTemp=~/data/temp_NOBACKUP
+for sample in K3SD2-H3K4me3-1 K3SD2-H3K4me3-2 THP1-H3K4me3-1 THP1-H3K4me3-2 THP1-input; do
+  echo $sample
+  samtools view -Sb $myTemp/${sample}.sam > $myTemp/${sample}_nonSorted.bam
+  samtools sort $myTemp/${sample}_nonSorted.bam > $myTemp/${sample}.bam
+  samtools rmdup -s $myTemp/${sample}.bam $myTemp/${sample}.nodup.bam 
+  samtools index $myTemp/${sample}.nodup.bam
+  rm $myTemp/${sample}.sam $myTemp/${sample}_nonSorted.bam $myTemp/${sample}.bam
+done
+
+mkdir -p ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1/bam
+newFolder=~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1/bam
+myTemp=~/data/temp_NOBACKUP
+for sample in K3SD2-H3K4me3-1 K3SD2-H3K4me3-2 THP1-H3K4me3-1 THP1-H3K4me3-2 THP1-input; do
+  mv $myTemp/${sample}.nodup.bam  $newFolder/.
+  mv $myTemp/${sample}.nodup.bam.bai  $newFolder/.
+done 
+
+############# making bw files with macs2: OBS! macs2 does not normalize to the number of reads but rather to a control
+# it would be needed when calling peaks, but not to represent data.... 
+# better use bedtools genomecov and use a scale factor 1000000/mapped reads
+
+#screen -R tracks
+#cd ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1
+#mkdir -p macs2; mkdir -p bw
+
+# bam files without duplicates!
+# something strange with chrM --> had to modify the entry for chrM to extend its length
+#CHROMSIZE=chrom.sizes 
+#for sample in K3SD2-H3K4me3-1 K3SD2-H3K4me3-2 THP1-H3K4me3-1 THP1-H3K4me3-2 THP1-input; do
+ # echo -en "$sample\n"
+#macs2 filterdup -i bam/${sample}.nodup.bam -o macs2/${sample}.bed
+ # macs2 pileup -i macs2/${sample}.bed -o macs2/${sample}.pileup.bdg --extsize 140
+  #bedGraphToBigWig macs2/${sample}.pileup.bdg $CHROMSIZE bw/${sample}.pileup.bw
+#done
+
+# making soft links and gettinf links for UCSC
+#cd ~/web/projects/Alex
+#folder=/NextGenSeqData/project-data/daria/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1/bw
+#for file in $folder/*bw; do
+ # ln -s $file .
+#done
+
+# making links for all files: 
+#for file in ~/web/projects/Alex/*bw; do
+ # name=$(basename $file)
+ # echo -en "https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/$name\n"
+#done
+
+# with bedtools
+# test
+#file=K3SD2-H3K4me3-1.nodup
+#hg19=~/data/data_genomes/hg19/chrom.sizes
+
+#scaleFactor=$(samtools idxstats bam/$file.bam | awk '{total+=$3} END{print 1000000/total}')
+#bedtools genomecov -ibam bam/$file.bam -bg -scale $scaleFactor -g $hg19 > bw/$file.bg
+#-clip - If set just issue warning messages rather than dying if wig
+ #                 file contains items off end of chromosome.
+#wigToBigWig bw/$file.bg $hg19 bw/$file.normalised.bw
+
+#### with bamCoverage tool --> will go with this one for now as only one line. Visually everything looked very simmilar
+#### bw files are not so sharp, can play around with --extendReads and --smoothLength
+
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1
+file=K3SD2-H3K4me3-1.nodup
+hg19=~/data/data_genomes/hg19/chrom.sizes # complained about chrM (is missing from good.sizes file)
+
+for file in K3SD2-H3K4me3-1 K3SD2-H3K4me3-2 THP1-H3K4me3-1 THP1-H3K4me3-2 THP1-input; do
+  scaleFactor=$(samtools idxstats bam/$file.nodup.bam | awk '{total+=$3} END{print 1000000/total}')
+  #echo -en "$file\t$scaleFactor\n"
+  # --centerReads shifts the center to make the enrichment site sharper 
+  bamCoverage --bam bam/$file.nodup.bam -o bw/$file.SeqDepthNorm.bw --scaleFactor $scaleFactor --centerReads
+done
+
+#K3SD2-H3K4me3-1 0.0639786
+#K3SD2-H3K4me3-2 0.0596021
+#THP1-H3K4me3-1  0.0631394
+#THP1-H3K4me3-2  0.0466284
+#THP1-input  0.0439778
+
+#K3SD2-H3K4me3-1 15630233
+#K3SD2-H3K4me3-2 16777926
+#THP1-H3K4me3-1  15837963
+#THP1-H3K4me3-2  21446166
+#THP1-input  22738739
+
+cd ~/web/projects/Alex
+folder=/NextGenSeqData/project-data/daria/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1/bw
+# making soft links and gettinf links for UCSC
+for file in $folder/*SeqDepthNorm.bw; do
+  ln -s $file .
+done
+
+# making links for all files: 
+for file in ~/web/projects/Alex/*SeqDepthNorm.bw; do
+  name=$(basename $file)
+  echo -en "https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/$name\n"
+done
+
+############################ new ChIPs 6 March 2018
+# on the server 
+mkdir ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+mkdir ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/raw
+
+# copying files from Desktop to 
+cd ~/Desktop/ARD-38966930/FASTQ*
+for f in ARDseq* ; do
+  echo -en "$f\n"
+  scp $f/*.fastq.gz daria@tycho.sund.root.ku.dk:~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/raw/.
+done
+
+cd ~/Desktop/Unind*/FASTQ*
+for f in Undetermined* ; do
+  echo -en "$f\n"
+  scp $f/*.fastq.gz daria@tycho.sund.root.ku.dk:~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/raw/.
+done
+
+# on the server
+# merging lanes and making nice names for files
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+mkdir ~/data/temp_NOBACKUP/newChIP # will remove afterwards
+myTemp=~/data/temp_NOBACKUP/newChIP
+for f in `ls raw/*_R1_001.fastq.gz`; do   
+   name=$(echo -en "${f%%.*}" | awk '{split($1,a,"_S"); print a[1]}')
+   label=$(basename $name)
+   echo -en "$label\n"
+   zcat $f >> $myTemp/$label.merged.fastq
+done
+
+# getting all the names 
+for f in `ls raw/*_R1_001.fastq.gz`; do   
+   name=$(echo -en "${f%%.*}" | awk '{split($1,a,"_S"); print a[1]}')
+   label=$(basename $name)
+   echo -en "$label\n" 
+done > /tmp/names.txt
+awk 
+
+# number of reads: 
+myTemp=~/data/temp_NOBACKUP/newChIP
+for name in TK5a-1 K3K5a-1 K8K5a-1 TK5a-2 K3K5a-2 K8K5a-2 TK5u K3K5u K8K5u Ti K3i K8i TK16a-1 K3K16a-1 K8K16a-1 TK16a-2 K3K16a-2 K8K16a-2 K8K3me3; do
+   echo -en "$name\n"
+   cat $myTemp/$name.merged.fastq | wc -l
+done
+
+# mapping with bowtie
+screen -R mapping
+# do not have gz files - cat on files 
+# will map to hg19 as all Fantom data is for hg19 + motifs
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+myTemp=~/data/temp_NOBACKUP/newChIP
+hg19=/k/genomes/hg19/index/bowtie_canonical/hg19 # somehow index in my directory was not working
+for name in TK5a-1 K3K5a-1 K8K5a-1 TK5a-2 K3K5a-2 K8K5a-2 TK5u K3K5u K8K5u Ti; do
+  echo -en $name
+  cat $myTemp/$name.merged.fastq | bowtie -p 5 -q -m 1 -v 3 --sam --best --strata --quiet $hg19 - > $myTemp/$name.sam
+done &
+
+# the second batch
+for name in K3i K8i TK16a-1 K3K16a-1 K8K16a-1 TK16a-2 K3K16a-2 K8K16a-2 K8K3me3; do
+  echo -en $name
+  cat $myTemp/$name.merged.fastq | bowtie -p 5 -q -m 1 -v 3 --sam --best --strata --quiet $hg19 - > $myTemp/$name.sam
+done &
+
+### making bam files
+# in two batches
+myTemp=~/data/temp_NOBACKUP/newChIP
+for sample in TK5a-1 K3K5a-1 K8K5a-1 TK5a-2 K3K5a-2 K8K5a-2 TK5u K3K5u K8K5u Ti; do
+  echo $sample
+  samtools view -Sb $myTemp/${sample}.sam > $myTemp/${sample}_nonSorted.bam
+  samtools sort $myTemp/${sample}_nonSorted.bam > $myTemp/${sample}.bam
+  samtools rmdup -s $myTemp/${sample}.bam $myTemp/${sample}.nodup.bam 
+  samtools index $myTemp/${sample}.nodup.bam
+  rm $myTemp/${sample}.sam $myTemp/${sample}_nonSorted.bam $myTemp/${sample}.bam
+done&
+
+for sample in K3i K8i TK16a-1 K3K16a-1 K8K16a-1 TK16a-2 K3K16a-2 K8K16a-2 K8K3me3; do
+  echo $sample
+  samtools view -Sb $myTemp/${sample}.sam > $myTemp/${sample}_nonSorted.bam
+  samtools sort $myTemp/${sample}_nonSorted.bam > $myTemp/${sample}.bam
+  samtools rmdup -s $myTemp/${sample}.bam $myTemp/${sample}.nodup.bam 
+  samtools index $myTemp/${sample}.nodup.bam
+  rm $myTemp/${sample}.sam $myTemp/${sample}_nonSorted.bam $myTemp/${sample}.bam
+done&
+
+
+mkdir -p ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/bam
+newFolder=~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/bam
+myTemp=~/data/temp_NOBACKUP/newChIP
+for sample in TK5a-1 K3K5a-1 K8K5a-1 TK5a-2 K3K5a-2 K8K5a-2 TK5u K3K5u K8K5u Ti K3i K8i TK16a-1 K3K16a-1 K8K16a-1 TK16a-2 K3K16a-2 K8K16a-2 K8K3me3; do
+  mv $myTemp/${sample}.nodup.bam  $newFolder/.
+  mv $myTemp/${sample}.nodup.bam.bai  $newFolder/.
+done 
+
+# remove fastq files and all content of the temp folder
+rm $myTemp/*
+
+# counting mapped reads
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+for sample in TK5a-1 K3K5a-1 K8K5a-1 TK5a-2 K3K5a-2 K8K5a-2 TK5u K3K5u K8K5u Ti K3i K8i TK16a-1 K3K16a-1 K8K16a-1 TK16a-2 K3K16a-2 K8K16a-2 K8K3me3; do
+  echo -en "$sample\t"
+  samtools idxstats bam/$sample.nodup.bam | awk '{total+=$3}END{print total}'
+done 
+
+#### making bw files for visual inspection
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+mkdir -p bw
+
+hg19=~/data/data_genomes/hg19/chrom.sizes # complained about chrM (is missing from good.sizes file)
+for file in TK5a-1 K3K5a-1 K8K5a-1 TK5a-2 K3K5a-2 K8K5a-2 TK5u K3K5u K8K5u Ti K3i K8i TK16a-1 K3K16a-1 K8K16a-1 TK16a-2 K3K16a-2 K8K16a-2 K8K3me3 ; do
+  scaleFactor=$(samtools idxstats bam/$file.nodup.bam | awk '{total+=$3} END{print 1000000/total}')
+  echo -en "$file\t$scaleFactor\n"
+  # --centerReads shifts the center to make the enrichment site sharper 
+  bamCoverage --bam bam/$file.nodup.bam -o bw/$file.SeqDepthNorm.bw --scaleFactor $scaleFactor --centerReads --extendReads 400 --binSize 10
+done
+
+# making links to tracks
+cd ~/web/projects/Alex
+folder=/NextGenSeqData/project-data/daria/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/bw
+# making soft links and gettinf links for UCSC
+for file in $folder/*SeqDepthNorm.bw; do
+  ln -s $file .
+done
+
+# making links for all files: 
+for file in ~/web/projects/Alex/*SeqDepthNorm.bw; do
+  name=$(basename $file)
+  echo -en "https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/$name\n"
+done
+
+############################# average profiles over KANSL3 targets vs active CAGE vs inactive CAGE
+
+# pull bam files for replicates and make bw files with similar settings: need for average profiles and for box plots
+# only for H4K5 and H3K4me3
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+
+for name in K3K5a TK5a K8K5a; do
+  echo -en "$name\n"
+  myTemp=~/data/temp_NOBACKUP/newChIP
+  samtools merge $myTemp/${name}.bam bam/${name}-1.nodup.bam bam/${name}-2.nodup.bam
+  samtools index $myTemp/${name}.bam
+  scaleFactor=$(samtools idxstats $myTemp/${name}.bam | awk '{total+=$3} END{print 1000000/total}')
+  bamCoverage --bam $myTemp/${name}.bam -o bw/${name}.SeqDepthNorm.merged.bw --scaleFactor $scaleFactor --centerReads --extendReads 400 --binSize 10
+done
+
+# the same for old data 
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1
+
+for name in K3SD2-H3K4me3 THP1-H3K4me3; do
+  echo -en "$name\n"
+  myTemp=~/data/temp_NOBACKUP/newChIP
+  samtools merge $myTemp/${name}.bam bam/${name}-1.nodup.bam bam/${name}-2.nodup.bam
+  samtools index $myTemp/${name}.bam
+  scaleFactor=$(samtools idxstats $myTemp/${name}.bam | awk '{total+=$3} END{print 1000000/total}')
+  bamCoverage --bam $myTemp/${name}.bam -o bw/${name}.SeqDepthNorm.merged.bw --scaleFactor $scaleFactor --centerReads --extendReads 400 --binSize 10
+done
+
+# clean temdirectory 
+rm ~/data/temp_NOBACKUP/newChIP/*bai ~/data/temp_NOBACKUP/newChIP/*bam 
+
+# getting averages over bed files 
+# still need to know how 0 are taken into consideration
+
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+
+# getting KANLS3 peaks, negative regions and random regions --> extend to 500 all of them (like peaks called by macs2)
+myTemp=~/data/temp_NOBACKUP/newChIP/
+
+awk -vOFS="\t" '(NR>1){summit=$2+int(($3-$2)/2);print $1,summit-250,summit+250,"KANSL3"NR}' ../KANSL3_Dec2017/macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed > $myTemp/KANSL3.bed
+awk -vOFS="\t" '{summit=$2+int(($3-$2)/2);print $1,summit-250,summit+250,"neg"NR}' ../KANSL3_Dec2017/dreme/negative.txt> $myTemp/negative.bed
+awk -vOFS="\t" '{summit=$2+int(($3-$2)/2);print $1,summit-250,summit+250,"rand"NR}' ../KANSL3_Dec2017/dreme/random.bed > $myTemp/rand.bed
+
+for file in K3K5a-1.SeqDepthNorm.bw K3K5a-2.SeqDepthNorm.bw K3K5a.SeqDepthNorm.merged.bw K3K5u.SeqDepthNorm.bw TK5a-1.SeqDepthNorm.bw TK5a-2.SeqDepthNorm.bw TK5u.SeqDepthNorm.bw TK5a.SeqDepthNorm.merged.bw; do
+  label=$(echo $file | awk '{split($1,a,"."); print a[1]}' )
+  echo $label
+  bigWigAverageOverBed bw/$file $myTemp/KANSL3.bed -bedOut=$myTemp/$label.KANSL3peaks.bed $myTemp/$label.KANSL3peaks.tab
+  bigWigAverageOverBed bw/$file $myTemp/negative.bed -bedOut=$myTemp/$label.neg.bed $myTemp/$label.neg.tab
+  bigWigAverageOverBed bw/$file $myTemp/rand.bed -bedOut=$myTemp/$label.rand.bed $myTemp/$label.rand.tab 
+done
+
+# for H3K4me3
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1
+myTemp=~/data/temp_NOBACKUP/newChIP/
+for file in THP1-H3K4me3-1.SeqDepthNorm.bw THP1-H3K4me3-2.SeqDepthNorm.bw THP1-H3K4me3.SeqDepthNorm.merged.bw K3SD2-H3K4me3-1.SeqDepthNorm.bw K3SD2-H3K4me3-2.SeqDepthNorm.bw K3SD2-H3K4me3.SeqDepthNorm.merged.bw; do
+  label=$(echo $file | awk '{split($1,a,"."); print a[1]}' )
+  echo $label
+  bigWigAverageOverBed bw/$file $myTemp/KANSL3.bed -bedOut=$myTemp/$label.KANSL3peaks.bed $myTemp/$label.KANSL3peaks.tab
+  bigWigAverageOverBed bw/$file $myTemp/negative.bed -bedOut=$myTemp/$label.neg.bed $myTemp/$label.neg.tab
+  bigWigAverageOverBed bw/$file $myTemp/rand.bed -bedOut=$myTemp/$label.rand.bed $myTemp/$label.rand.tab 
+done
+
+# merging files for peaks, negative regions and random regions
+# HAS TO RE-RUN before plotting
+rm $myTemp/*forR.txt
+for exp in KANSL3peaks neg rand; do
+ touch $myTemp/$exp.forR.txt
+ for file in TK5a-1.SeqDepthNorm.bw TK5a-2.SeqDepthNorm.bw TK5u.SeqDepthNorm.bw TK5a.SeqDepthNorm.merged.bw K3K5a-1.SeqDepthNorm.bw K3K5a-2.SeqDepthNorm.bw K3K5u.SeqDepthNorm.bw K3K5a.SeqDepthNorm.merged.bw; do
+  label=$(echo $file | awk '{split($1,a,"."); print a[1]}' )
+  echo $label
+  paste $myTemp/$exp.forR.txt <(cut -f5 $myTemp/$label.$exp.bed) > $myTemp/temp.txt
+  mv $myTemp/temp.txt $myTemp/$exp.forR.txt
+done
+done
+
+# for H3K4me3 data --> re-wrote all K5ac :(
+rm $myTemp/*forR.txt
+for exp in KANSL3peaks neg rand; do
+ touch $myTemp/$exp.forR.txt
+ for file in THP1-H3K4me3-1.SeqDepthNorm.bw THP1-H3K4me3-2.SeqDepthNorm.bw THP1-H3K4me3.SeqDepthNorm.merged.bw K3SD2-H3K4me3-1.SeqDepthNorm.bw K3SD2-H3K4me3-2.SeqDepthNorm.bw K3SD2-H3K4me3.SeqDepthNorm.merged.bw ; do
+  label=$(echo $file | awk '{split($1,a,"."); print a[1]}' )
+  echo $label
+  paste $myTemp/$exp.forR.txt <(cut -f5 $myTemp/$label.$exp.bed) > $myTemp/temp.txt
+  mv $myTemp/temp.txt $myTemp/$exp.forR.txt
+done
+done
+
+# final files
+~/data/temp_NOBACKUP/newChIP/KANSL3peaks.forR.txt
+~/data/temp_NOBACKUP/newChIP/rand.forR.txt 
+~/data/temp_NOBACKUP/newChIP/neg.forR.txt
+
+R 
+source ("~/utils/Rutils/boxplot95.R")
+
+file1<-read.table("~/data/temp_NOBACKUP/newChIP/KANSL3peaks.forR.txt")
+file2<-read.table("~/data/temp_NOBACKUP/newChIP/rand.forR.txt")
+file3<-read.table("~/data/temp_NOBACKUP/newChIP/neg.forR.txt")
+
+#rownames(file1)<-c("TK5a-1","TK5a-2","TK5u","TK5a","K3K5a-1","K3K5a-2","K3K5u","K3K5a")
+
+pdf("plots/boxplots_H4K5ac_WT_K3.pdf")
+par(mfrow=c(4,1))
+
+boxplot95(file1[,4],file2[,4],file3[,4],file1[,8],file2[,8],file3[,8],
+  names=c("TK5a peaks","TK5a random","TK5a neg","K3K5a peaks","K3K5a random","K3K5a neg"),
+  frame=F,main=c("merged replicates"),las=2)
+boxplot95(file1[,3],file2[,3],file3[,3],file1[,7],file2[,7],file3[,7],
+  names=c("TK5a peaks","TK5a random","TK5a neg","K3K5a peaks","K3K5a random","K3K5a neg"),
+  frame=F,main=c("upstate ab"),las=2)
+boxplot95(file1[,1],file2[,1],file3[,1],file1[,5],file2[,5],file3[,5],
+  names=c("TK5a peaks","TK5a random","TK5a neg","K3K5a peaks","K3K5a random","K3K5a neg"),
+  frame=F,main=c("rep 1"),las=2)
+boxplot95(file1[,2],file2[,2],file3[,2],file1[,7],file2[,7],file3[,7],
+  names=c("TK5a peaks","TK5a random","TK5a neg","K3K5a peaks","K3K5a random","K3K5a neg"),
+  frame=F,main=c("rep 2"),las=2)
+dev.off()
+
+wilcox.test(file1[,8],file3[,8])
+wilcox.test(file3[,4],file3[,8])
+
+# for H3K4me3
+source ("~/utils/Rutils/boxplot95.R")
+
+file1<-read.table("~/data/temp_NOBACKUP/newChIP/KANSL3peaks.forR.txt")
+file2<-read.table("~/data/temp_NOBACKUP/newChIP/rand.forR.txt")
+file3<-read.table("~/data/temp_NOBACKUP/newChIP/neg.forR.txt")
+
+# rows: WT-1 WT-2 WT K3-1 K3-2 K3
+
+pdf("plots/boxplots_H3K4me3_WT_K3.pdf")
+par(mfrow=c(3,1))
+
+boxplot95(file1[,1],file2[,1],file3[,1],file1[,4],file2[,4],file3[,4],
+  names=c("WT peaks","WT random","WT neg","K3 peaks","K3 random","K3 neg"),
+  frame=F,main=c("rep 1, H3K4me3"),las=2)
+
+boxplot95(file1[,2],file2[,2],file3[,2],file1[,5],file2[,5],file3[,5],
+  names=c("WT peaks","WT random","WT neg","K3 peaks","K3 random","K3 neg"),
+  frame=F,main=c("rep 2,H3K4me3"),las=2)
+
+boxplot95(file1[,3],file2[,3],file3[,3],file1[,6],file2[,6],file3[,6],
+  names=c("WT peaks","WT random","WT neg","K3 peaks","K3 random","K3 neg"),
+  frame=F,main=c("merged, H3K4me3"),las=2)
+
+dev.off()
+
+q()
+
+###### average profiles
+
+# to be continued
+
+################### OLD script from Alex's paper #########################
+### possible script
+#rm /tmp/out*
+#names=~/data/projects/BRIC_data/Alex/CRISPR_CAGE_files/file_names.txt
+#while read F  ; do
+#  label=$(basename $F .bw)
+#  echo $label
+#  mark=~/data/published_data/ENCODE/human/K562/$F
+#  bigWigAverageOverBed $mark /tmp/file.coord.txt -bedOut=/tmp/out.$label.bed /tmp/out.$label.tab
+#done < $names
+
+# average prfiles 
+
+#bigWigToBedGraph ~/data/published_data/ENCODE/human/K562/wgEncodeSydhNsomeK562Sig.bw stdout > /tmp/mnase.bg &
+#bigWigToBedGraph ~/data/published_data/ENCODE/human/K562/wgEncodeOpenChromDnaseK562Aln_2Reps.norm5.rawsignal.bw stdout > /tmp/dnase.bg &
+#mnase=/tmp/mnase.bg
+#dnase=/tmp/dnase.bg 
+#win=1000
+#awk -vWIN=$win '(NR>1 && $1=="chr1"){print $7,$8+int(($9-$8)/2)-WIN,$8+int(($9-$8)/2)+WIN,$6"_"$10}' $cage | sort -u | awk -vOFS="\t" '{chr[$4]=$1;start[$4]=$2;end[$4]=$3}END{for(k in chr){for(i=start[k];i<=end[k];i++)print chr[k],i,i+1,k}}' | sort -V -k1,1 -k2,2n > /tmp/cage.windows.bp.txt
+
+#win=1000
+#awk -vWIN=$win '(NR>1 && $6=="chr1"){print $6,$7+int(($8-$7)/2)-WIN,$7+int(($8-$7)/2)+WIN,$6"_"$7"_"$8}' $tss | sort -u | awk -vOFS="\t" '{chr[$4]=$1;start[$4]=$2;end[$4]=$3}END{for(k in chr){for(i=start[k];i<=end[k];i++)print chr[k],i,i+1,k}}' | sort -V -k1,1 -k2,2n > /tmp/tss.windows.bp.txt
+
+#bedtools intersect -loj -a /tmp/cage.windows.bp.txt -b $mnase > /tmp/cage.windows.bp.mnase.txt &
+#bedtools intersect -loj -a /tmp/cage.windows.bp.txt -b $dnase > /tmp/cage.windows.bp.dnase.txt &
+
+#bedtools intersect -loj -a /tmp/tss.windows.bp.txt -b $mnase > /tmp/tss.windows.bp.mnase.txt &
+
+#for data in mnase dnase; do
+#  awk '{if($8=="."){print $1,$2,$3,$4,$5,$6,$7,"NA"}else{print $0}}' /tmp/cage.windows.bp.${data}.txt | awk -vOFS="\t" '{d=$4;density[d]=density[d]"\t"$8}END{for(summit in density){print summit,density[summit]}}' > /tmp/density.cage.${data}.txt
+#done
+
+#awk '{if($8=="."){print $1,$2,$3,$4,$5,$6,$7,"NA"}else{print $0}}' /tmp/tss.windows.bp.mnase.txt | awk -vOFS="\t" '{d=$4;density[d]=density[d]"\t"$8}END{for(summit in density){print summit,density[summit]}}' > /tmp/density.tss.mnase.txt
+#R
+#x<-read.table("/tmp/density.cage.mnase.txt",row.names=1)
+#y<-read.table("/tmp/density.cage.dnase.txt",row.names=1)
+#z<-read.table("/tmp/density.tss.mnase.txt",row.names=1)
+
+#library("zoo")
+#plot(rollapply(apply(x[,800:1500],2,mean,na.rm=TRUE),1,by=1,mean),type="l",col="red",frame.plot=F,ylab="Signal",xaxt="n",main="MNase",las=1,ylim=c(0,1))
+#lines(rollapply(apply(z[,800:1500],2,mean,na.rm=TRUE),1,by=1,mean),type="l",col="blue",frame.plot=F,ylab="Signal",xaxt="n",main="MNase",las=1,ylim=c(0,1))
+#plot(rollapply(apply(y,2,mean,na.rm=TRUE),1,by=1,mean),type="l",col="blue",frame.plot=F,las=1,ylim=c(0,40))
+
+
+################ CAGE data combined with RNA-seq and KANSL3 peak status
+
+# CAGE and KANSL3 distance distribution
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+
+fileA=macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed
+fileB=~/temp_NOBACKUP/FANTOM_table_THP1.rank.txt
+
+# closest FANTOM5 peaks --> best solution, better than intersect
+# temp file does not have a header! 
+# will extend all peaks to 500 bp but CAGE peaks - will keep centers 
+
+bedtools closest -a <(awk -vOFS="\t" '(NR>1){summit=$2+int(($3-$2)/2) ;print $1,summit-500,summit+500}' $fileA | sort -k1,1 -k2,2n) \
+-b <(awk -vOFS="\t" '{summit=$2+int(($3-$2)/2); print $1,summit,summit+1}' $fileB | sort -k1,1 -k2,2n) -d | \
+ awk '{print $7}' > /tmp/CAGE.distance.txt
+
+# distance to 500 random peaks
+bedtools random -n 500 -l 1 -g /home/daria/data/data_genomes/hg19/chrom.sizes.good | awk -vOFS="\t" '{print $1,$2,$3}' > /tmp/random.txt
+
+bedtools closest -a <(awk -vOFS="\t" '{summit=$2+int(($3-$2)/2) ;print $1,summit-500,summit+500}' $fileA | sort -k1,1 -k2,2n /tmp/random.txt) \
+-b <(awk -vOFS="\t" '{summit=$2+int(($3-$2)/2); print $1,summit,summit+1}' $fileB | sort -k1,1 -k2,2n) -d | \
+ awk '{print $7}' > /tmp/rand.distance.txt
+
+ # making a data frame for R
+ # add pseudocaunt if 0
+ cat <(awk '{if($1==0){count=1}else{count=$1};print log(count)/log(2),"KANSL3peaks"}' /tmp/CAGE.distance.txt) \
+  <(awk '{if($1==0){count=1}else{count=$1};print log(count)/log(2),"random"}' /tmp/rand.distance.txt) > /tmp/data.txt
+
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+R
+#library(ggplot2)
+require(ggplot2)
+quantiles_95 <- function(x) {
+  r <- quantile(x, probs=c(0.05, 0.25, 0.5, 0.75, 0.95))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+cage<-read.table("/tmp/data.txt")
+
+
+pdf("plots/distnance_500bp_centersCAGE.pdf")
+
+ggplot(cage, aes(x = cage$V2, y = cage$V1, color=cage$V2)) +
+  geom_boxplot() + 
+  stat_summary(fun.data = quantiles_95, geom="boxplot") +
+  labs(title="Distance to CAGE-defined TSSs",x="", y = "log2 distance [bp]")
+
+dev.off()
+
+q()
+
+########
+
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+
+fileA=macs2/differential/diff_c1_vs_c2_c3.0_cond2.bed
+fileB=~/temp_NOBACKUP/FANTOM_table_THP1.rank.txt
+
+
+# will overlap with all CAGE data and keep either the best ranked TSSs for each gene or p1=0
+# 25699 of such CAGEs: p1=0 11310 --> 44% of all cage peaks are not expressed in THP1
+
+# preselect CAGE peaks so they have either pRank1 or p1=0, but not both. Have to uniq genes
+# give priority to pRank1 not to p1
+
+awk '($10=="pRank1" || ($10==0 && $6=="p1")){print $0}' $fileB | \
+awk '($6!="p1" && $10=="pRank1" || ($6=="p1" && $10==0)){print $5}' | uniq -c | awk '($1!=1){print $2}' > /tmp/exlude.txt
+awk -vFile="/tmp/exlude.txt" 'BEGIN{while((getline<File)>0){name[$1]=$1}}{if($5 in name){if($10=="pRank1"){print $0}}else{if($10=="pRank1" || ($10==0 && $6=="p1")){print $0}}}' $fileB > ~/data/temp_NOBACKUP/cage_exluded.txt
+
+# checking 
+awk '($10=="pRank1" || ($10==0 && $6=="p1")){print $0}' ~/data/temp_NOBACKUP/cage_exluded.txt | \
+awk '($6!="p1" && $10=="pRank1" || ($6=="p1" && $10==0)){print $5}' | uniq -c | sort -k1,1gr 
+
+rm /tmp/exlude.txt
+
+# redirect fileB
+fileB=~/data/temp_NOBACKUP/cage_exluded.txt
+
+# values for CAGE only from fresh sample, column 10 or #7 in the original file
+bedtools closest -a <(awk -vOFS="\t" '(NR>1){summit=$2+int(($3-$2)/2) ;print $1,summit-500,summit+500}' $fileA | sort -k1,1 -k2,2n) \
+-b <(awk -vOFS="\t" '{print $0}' $fileB | sort -k1,1 -k2,2n) -d | \
+awk '($14==0){print $8,$10}' > ~/data/temp_NOBACKUP/kansl3_genes_cage.txt
+
+# get 500 expressed CAGE peaks without KANSL3 peaks: negative control set
+bedtools closest -a <(awk -vOFS="\t" '($10=="pRank1"){print $0}' $fileB | sort -k1,1 -k2,2n) \
+-b <(awk -vOFS="\t" '(NR>1){summit=$2+int(($3-$2)/2) ;print $1,summit-500,summit+500}' $fileA | sort -k1,1 -k2,2n) -d | \
+awk '($14>1000){print $5,$7}' | shuf -n 500  > ~/data/temp_NOBACKUP/genes_cage_noKansl.txt
+
+# all CAGE data excluding 0
+awk -vOFS="\t" '($10=="pRank1"){print $5,$7}' $fileB > ~/data/temp_NOBACKUP/ALL_cage_expressed.txt
+
+# making a data frame for R
+
+cat <(awk '{print $1,log($2)/log(2),"KANSL3target"}' ~/data/temp_NOBACKUP/kansl3_genes_cage.txt) \
+<(awk '{print $1,log($2)/log(2),"notKANSL3target"}' ~/data/temp_NOBACKUP/genes_cage_noKansl.txt) \
+<(awk '{print $1,log($2)/log(2),"expressedCAGE"}' ~/data/temp_NOBACKUP/ALL_cage_expressed.txt) > /tmp/dataframe.txt
+
+
+R 
+require(ggplot2)
+quantiles_95 <- function(x) {
+  r <- quantile(x, probs=c(0.05, 0.25, 0.5, 0.75, 0.95))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+data<-read.table("/tmp/dataframe.txt")
+
+
+pdf("plots/CAGEvalues.pdf")
+
+ggplot(data, aes(x = data$V3, y = data$V2, color=data$V3)) +
+  geom_boxplot(outlier.shape = NA) + 
+  stat_summary(fun.data = quantiles_95, geom="boxplot") + 
+  labs(title="CAGE values",x="", y = "log2 CAGE normalized counts") +
+  scale_color_manual(labels = c("All non-0 CAGE", "KANSL3 targets","random non-0 non-KANSL3 CAGE"), values = c("green", "red","blue"))
+
+dev.off()
+
+wilcox.test(subset(data[,2],data$V3 == "KANSL3target"),subset(data[,2],data$V3 == "expressedCAGE")) # very small
+wilcox.test(subset(data[,2],data$V3 == "KANSL3target"),subset(data[,2],data$V3 == "notKANSL3target")) # 0.000164
+wilcox.test(subset(data[,2],data$V3 == "expressedCAGE"),subset(data[,2],data$V3 == "notKANSL3target")) # 0.3039
+
+
+q()
+
+###### adding RNA-seq values to dataframe with KANSL3 targets and non-targets
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/KANSL3_Dec2017/
+
+cat <(awk '{print $1,log($2)/log(2),"KANSL3target"}' ~/data/temp_NOBACKUP/kansl3_genes_cage.txt) \
+<(awk '{print $1,log($2)/log(2),"notKANSL3target"}' ~/data/temp_NOBACKUP/genes_cage_noKansl.txt) > /tmp/dataframe.txt
+
+rnaseq=../../RNA-seq/data_May2017/DESeq2/all_experiemnts.deseq2.merged.txt
+
+awk -vFile=$rnaseq 'BEGIN{while((getline<File)>0){name[$2]=$7"\t"$8}}{if($1 in name){print $0,name[$1]}else{print $0,"NA","NA"}}' /tmp/dataframe.txt > /tmp/rnase.data.txt
+
+# how many were recovered: 122 out of 160 CAGE peaks for KANSL3 targets; 393 out of 500 for notKANSL3targets
+awk '($3=="KANSL3target" && $4!="NA")' /tmp/rnase.data.txt | wc -l 
+
+# how many increasing by p-value? p=0.01 and p=0.05
+
+for i in KANSL3target notKANSL3target; do
+  for p in 0.01 0.05; do
+    awk -vOFS="\t" -vP=$p -vI=$i '($4!="NA" && $5<=P && $3==I){if($4<0){down++}else{up++}}END{print I,"p="P,"down="down,"up="up}' /tmp/rnase.data.txt
+  done
+done
+
+#KANSL3target  p=0.01  down=26 up=1 --> 21% down; 0.8% up
+#KANSL3target  p=0.05  down=37 up=1 --> 30.3% down, 0.8% up
+#notKANSL3target p=0.01  down=18 up=2 --> 4.5% down and 0.5% up
+#notKANSL3target p=0.05  down=30 up=9 --> 7.6% down and 2.3% up
+
+# rnaseq target that go down significantly: what are their CAGE values?
+p=0.05
+awk -vOFS="\t" -vP=$p '($4!="NA"){if($4<0 && $5<=P){print $0,"down"}else{print $0,"notUp"}}' /tmp/rnase.data.txt > /tmp/cage_down.txt
+
+R 
+require(ggplot2)
+library(plyr)
+# making data frame to make a cumulative barplots
+df2 <- data.frame(target=rep(c("KANSL3 target genes", "non-target genes"), each=2),
+                change=rep(c("up", "down"),2),
+                percent=c(0.8, 30.3, 2.3, 7.6))
+# sorting
+df_sorted <- arrange(df2, target, rev(change)) 
+
+# making cumulative
+# + 0.2 to shift labels a bit upward for esthetics 
+df_cumsum <- ddply(df_sorted, "target",
+                   transform, label_ypos=cumsum(percent)+0.2)
+
+pdf("plots/rnaseq_p0.05_percentage.pdf")
+ggplot(data=df_cumsum, aes(x=target, y=percent, fill=change)) +
+  geom_bar(stat="identity")+
+  geom_text(aes(y=label_ypos, label=percent), vjust=1.6, 
+            color="white", size=3.5)+
+  scale_fill_brewer(palette="Paired")+
+  theme_minimal()
+dev.off()
+
+# plotting boxplot and marking genes that go down
+data<-read.table("/tmp/cage_down.txt")
+
+# to make 5-95 boxplot
+require(ggplot2)
+quantiles_95 <- function(x) {
+  r <- quantile(x, probs=c(0.05, 0.25, 0.5, 0.75, 0.95))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+pdf("plots/CAGE_values_down_targets_KANSL3.pdf")
+
+sub<-subset(data,data$V6 == "down")
+ggplot(data, aes(x = data$V3, y = data$V2, color=data$V3)) +
+  geom_boxplot(outlier.shape = NA) + # plots sort of double plot with 'outliers'
+  stat_summary(fun.data = quantiles_95, geom="boxplot") + 
+  geom_point(data=sub,aes(x = sub$V3, y = sub$V2, color=sub$V3),position = position_jitterdodge(dodge.width = 0.45)) +
+  labs(title="CAGE values",x="", y = "log2 CAGE normalized counts") +
+  scale_color_manual(labels = c("KANSL3 targets down", "non-KANSL3 targets down"), values = c("red", "blue"))
+
+dev.off()
+
+q()
+
+####################################################
+####################### use the scaling factor to nosmalise ChIP-seq tracks
+
+#### making bw files for visual inspection
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+mkdir -p bw
+
+#> ScalingFactors(brd.tss) # Estimated using promoters
+#     H4K16ac_WT_rep1 H4K16ac_KAT8_KD_rep1      H4K16ac_WT_rep2 
+#           2.0155981            0.6233684            1.5584766 
+#H4K16ac_KAT8_KD_rep2             Input_WT             Input_KD 
+#           0.5160824            0.8836218            1.1198646 
+
+hg19=~/data/data_genomes/hg19/chrom.sizes # complained about chrM (is missing from good.sizes file)
+for name in Ti_0.8836218 K8i_1.1198646 TK16a-1_2.0155981 K8K16a-1_0.6233684 TK16a-2_1.5584766 K8K16a-2_0.5160824; do
+  file=$(echo -en $name | awk '{split($1,a,"_"); print a[1]}')
+  scaleFactor=$(echo -en $name | awk '{split($1,a,"_"); print a[2]}')
+  echo -en "$file\t$scaleFactor\n"
+  # --centerReads shifts the center to make the enrichment site sharper 
+  bamCoverage --bam bam/$file.nodup.bam -o bw/$file.BRDnorm.bw --scaleFactor $scaleFactor --centerReads --extendReads 400 --binSize 10
+done
+
+# making links to tracks
+cd ~/web/projects/Alex
+folder=/NextGenSeqData/project-data/daria/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/bw
+# making soft links and gettinf links for UCSC
+for file in $folder/*BRDnorm.bw; do
+  ln -s $file .
+done
+
+# making links for all files: 
+for file in ~/web/projects/Alex/*BRDnorm.bw; do
+  name=$(basename $file)
+  echo -en "https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/$name\n"
+done
+
+####################### making average profiles for K8 and K3 KD using deeptools
+
+#> ScalingFactors(brd.tss) # Estimated using promoters --> USED FOR KAT8, WILL USE HERE AS WELL
+#       H4K16ac_WT_rep1 H4K16ac_KANSL3_KD_rep1        H4K16ac_WT_rep2 
+#             1.7743517              1.0239981              1.3677038 
+#H4K16ac_KANSL3_KD_rep2               Input_WT               Input_KD 
+#             0.7400619              0.6492857              0.8374623 
+
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+mkdir -p bw
+
+hg19=~/data/data_genomes/hg19/chrom.sizes # complained about chrM (is missing from good.sizes file)
+for name in Ti_0.6492857 K8i_0.8374623 TK16a-1_1.7743517 K3K16a-1_1.0239981 TK16a-2_1.3677038 K3K16a-2_0.7400619; do
+  file=$(echo -en $name | awk '{split($1,a,"_"); print a[1]}')
+  scaleFactor=$(echo -en $name | awk '{split($1,a,"_"); print a[2]}')
+  echo -en "$file\t$scaleFactor\n"
+  # --centerReads shifts the center to make the enrichment site sharper 
+  bamCoverage --bam bam/$file.nodup.bam -o bw/$file.K3BRDnorm.bw --scaleFactor $scaleFactor --centerReads --extendReads 400 --binSize 10
+done
+
+# making links to tracks
+cd ~/web/projects/Alex
+folder=/NextGenSeqData/project-data/daria/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/bw
+# making soft links and gettinf links for UCSC
+for file in $folder/*K3BRDnorm.bw; do
+  ln -s $file .
+done
+
+# making links for all files: 
+for file in ~/web/projects/Alex/*K3BRDnorm.bw; do
+  name=$(basename $file)
+  echo -en "https://bricweb.sund.ku.dk/bric-data/daria/projects/Alex/$name\n"
+done
+
+####### making average profiles with deeptools
+
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+mkdir -p average_profiles
+
+# getting genes for hg19
+cd ~/data/data_genomes/hg19
+wget ftp://ftp.ensembl.org/pub/release-75/gtf/homo_sapiens/Homo_sapiens.GRCh37.75.gtf.gz
+
+# the annotation file chromosome naming did not match genome fasta file -> added chr to the gtf file manually; remove non-canonical chromosomes
+
+zcat Homo_sapiens.GRCh37.75.gtf.gz | awk '(NR<=5){print $0}' > /tmp/header.txt
+zcat Homo_sapiens.GRCh37.75.gtf.gz | awk '(length($1)<=2){if($1!="MT"){print "chr"$0}else{start=substr($0,1,2);gsub("MT","chrM",start);end=substr($0,3); print start,end}}' > /tmp/file.txt
+cat /tmp/header.txt /tmp/file.txt > ~/data/data_genomes/hg38/gtf/Homo_sapiens.GRCh37.75.canonical.gtf
+rm /tmp/header.txt /tmp/file.txt 
+
+
+# profiles over all genes in the genome
+# bed file with all genes
+GTF=~/data/data_genomes/hg38/gtf/Homo_sapiens.GRCh37.75.canonical.gtf
+awk -vOFS="\t" '(NR>5 && $3=="gene"){gsub("\"","");gsub(";","");print $1,$4,$5,$10,"0",$7}' $GTF > ~/data/data_genomes/hg19/Homo_sapiens.GRCh37.75.canonical.bed
+
+screen -R scale
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018
+allGenes=~/data/data_genomes/hg19/Homo_sapiens.GRCh37.75.canonical.bed
+
+computeMatrix scale-regions -R $allGenes -S bw/*.BRDnorm.bw -b 2000 -a 2000 \
+  --regionBodyLength 2000 \
+  --skipZeros -o average_profiles/matrix_K8_BRDnorm_gene1kb.gz \
+  --outFileNameMatrix average_profiles/matrix_K8_BRDnorm_gene1kb.tab \
+  --outFileSortedRegions average_profiles/regions_K8_BRDnorm_gene1kb.bed
+
+plotHeatmap \
+ -m average_profiles/matrix_K8_BRDnorm_gene1kb.gz \
+ -out average_profiles/K8_BRDnorm_gene1kb.png \
+ --colorMap YlGnBu \
+ --regionsLabel 'all genes' \
+ --heatmapHeight 15 \
+ --plotTitle 'average profile' &
+
+# for KANSL3
+
+computeMatrix scale-regions -R $allGenes -S bw/*.K3BRDnorm.bw -b 2000 -a 2000 \
+  --regionBodyLength 2000 \
+  --skipZeros -o average_profiles/matrix_K3_BRDnorm_gene1kb.gz \
+  --outFileNameMatrix average_profiles/matrix_K3_BRDnorm_gene1kb.tab \
+  --outFileSortedRegions average_profiles/regions_K3_BRDnorm_gene1kb.bed
+
+plotHeatmap \
+ -m average_profiles/matrix_K3_BRDnorm_gene1kb.gz \
+ -out average_profiles/K3_BRDnorm_gene1kb.png \
+ --colorMap YlGnBu \
+ --regionsLabel 'all genes' \
+ --heatmapHeight 15 \
+ --plotTitle 'average profile' &
+
+
+# average profiles with pulished data in mouse
+cd ~/data/data_genomes/mm9
+wget ftp://ftp.ensembl.org/pub/release-65/gtf/mus_musculus/Mus_musculus.NCBIM37.65.gtf.gz
+
+################################# BRD normalization for all samples at the same time
+
+cd data
+
+/usr/local/lib64/R-3.4.2/bin/R
+library(Tightrope)
+lst <- c(
+"devtools", "stringr", "data.table", "triangle", "caTools", "ica", "FNN",
+"igraph", "mixtools"
+)
+lapply(lst,function(x){library(x,character.only=TRUE)}) 
+source("https://bioconductor.org/biocLite.R")
+lst <- c(
+"Rsamtools", "GenomicAlignments", "GenomicRanges", "GenomicFeatures",
+"rtracklayer", "biomaRt"
+)
+lapply(lst,function(x){library(x,character.only=TRUE)})
+
+DIR="~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/bam/"
+
+bam.files <- c(
+paste(DIR,"TK16a-1.nodup.bam",sep=""),
+paste(DIR,"K8K16a-1.nodup.bam",sep=""),
+paste(DIR,"TK16a-2.nodup.bam",sep=""),
+paste(DIR,"K8K16a-2.nodup.bam",sep=""),
+paste(DIR,"K3K16a-1.nodup.bam",sep=""),
+paste(DIR,"K3K16a-2.nodup.bam",sep=""),
+paste(DIR,"Ti.nodup.bam",sep=""),
+paste(DIR,"K8i.nodup.bam",sep="")
+)
+
+conditions <- c(
+"H4K16ac_WT_rep1",
+"H4K16ac_KAT8_KD_rep1",
+"H4K16ac_WT_rep2",
+"H4K16ac_KAT8_KD_rep2",
+"H4K16ac_KANSL3_KD_rep1",
+"H4K16ac_KANSL3_KD_rep2",
+"Input_WT",
+"Input_KD"
+)
+
+bam.flag <- scanBamFlag(isDuplicate = F, isUnmappedQuery = F)
+
+chip <- c("H4K16ac_WT_rep1", "H4K16ac_KAT8_KD_rep1",
+"H4K16ac_WT_rep2", "H4K16ac_KAT8_KD_rep2",
+"H4K16ac_KANSL3_KD_rep1","H4K16ac_KANSL3_KD_rep2")
+ctrl <- c("Input_WT", "Input_KD")
+
+data("EGA75_human") # gene features
+data("hg19_blacklist") 
+data("CGI_hg19")
+
+# making regions over which the counts will be made
+TSS <- resize(EGA75_human$TSS, width = 4000, fix = "center", use.names = F)
+# Define CGI regions as 4kb windows centered at CpG-islands annotated by UCSC
+CGI <- resize(CGI_hg19, width = 4000, fix = "center", use.names = F)
+CGI <- with(EGA75_human, CleanupGRanges(CGI, seqinfo, organism = organism$name))
+# Make 4kb windows every 1kb over the whole genome
+if(! LoadObj(WGW)) {
+WGW <- GenomicTiling(EGA75_human$seqinfo, s = 1000, w = 4000)
+SaveObj(WGW)
+}
+
+# Will re-run COUNTS for everything just in case
+
+#if(! LoadObj(COUNTS)) { # Load previously saved COUNTS object if available
+COUNTS <- new.env()
+# Read counts over gene units
+COUNTS$GNU <- ReadCountMatrix(
+bam.files, EGA75_human$GNU, paired = F, names = conditions,
+param = ScanBamParam(flag = bam.flag)
+)
+# Read counts over promoter regions
+COUNTS$TSS <- ReadCountMatrix(
+bam.files, TSS, paired = F, names = conditions,
+param = ScanBamParam(flag = bam.flag)
+)
+# Read counts over CpG-islands
+COUNTS$CGI <- ReadCountMatrix(
+bam.files, CGI, paired = F, names = conditions,
+param = ScanBamParam(flag = bam.flag)
+)
+# Read counts over the whole genome (4kb windows every 1kb)
+COUNTS$WGW <- ReadCountMatrix(
+bam.files, WGW, paired = F, names = conditions,
+param = ScanBamParam(flag = bam.flag)
+)
+SaveObj(COUNTS) # Save COUNTS object as RData
+#}
+
+# will not build plots, because looked at the data before: only one cluster
+# bdt parameter taken from the documentation by Benjamin
+
+brd.gnu <- BRD(COUNTS$GNU, controls = ctrl, ncl=1, bdt = c(0.8, 0.05))
+brd.tss <- BRD(COUNTS$TSS, controls = ctrl, ncl=1, bdt = c(0.8, 0.05))
+brd.cgi <- BRD(COUNTS$CGI, controls = ctrl, ncl=1 ,bdt = c(0.8, 0.05))
+
+ScalingFactors(brd.gnu) # Estimated using gene units
+ScalingFactors(brd.tss) # Estimated using promoters
+ScalingFactors(brd.cgi) # Estimated using CpG-islands
+
+# conclusion: the scaling factors did not differ much: the variation is the same if I had run BRD several times
+# will keep bw files like they were normalized before
+
+q()
+
+################################################################
+
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_March_2018/average_profiles
+
+# to see sample boundaries  look at matrix*.gz file, first line. Each row contains info for one gene and several groups
+#"sample_boundaries":[0,600,1200,1800,2400,3000,3600]
+
+# breaking matrix into 4 groups: "K8i.BRDnorm","K8K16a-1.BRDnorm","K8K16a-2.BRDnorm","Ti.BRDnorm","TK16a-1.BRDnorm","TK16a-2.BRDnorm"
+
+R
+# read.table can handle zipped files directly
+
+x<-read.table("matrix_K8_BRDnorm_gene1kb.gz",skip=1)
+
+# second way
+library("zoo")
+pdf("draft_K8_average_nolabels.pdf")
+plot(rollapply(apply(x[,7:600],2,mean,na.rm=TRUE),15,by=4,median),type="l",col="red",frame.plot=F,ylab="Signal",xaxt="n",main="H4K16ac",las=1,ylim=c(0.3,1))
+lines(rollapply(apply(x[,600:1200],2,mean,na.rm=TRUE),15,by=4,median),type="l",col="blue",frame.plot=F,ylab="Signal",xaxt="n",main="H4K16ac",las=1,ylim=c(0.3,1))
+lines(rollapply(apply(x[,1200:1800],2,mean,na.rm=TRUE),15,by=4,median),type="l",col="deepskyblue4",frame.plot=F,ylab="Signal",xaxt="n",main="H4K16ac",las=1,ylim=c(0.3,1))
+lines(rollapply(apply(x[,1800:2400],2,mean,na.rm=TRUE),15,by=4,median),type="l",col="firebrick4",frame.plot=F,ylab="Signal",xaxt="n",main="H4K16ac",las=1,ylim=c(0.3,1))
+lines(rollapply(apply(x[,2400:3000],2,mean,na.rm=TRUE),15,by=4,median),type="l",col="chartreuse3",frame.plot=F,ylab="Signal",xaxt="n",main="H4K16ac",las=1,ylim=c(0.3,1))
+lines(rollapply(apply(x[,3000:3600],2,mean,na.rm=TRUE),15,by=4,median),type="l",col="chartreuse4",frame.plot=F,ylab="Signal",xaxt="n",main="H4K16ac",las=1,ylim=c(0.3,1))
+dev.off()
+
+
+####################### data from August 2018: all ChIPs for chromatin marks re-done
+# problems: some sequencing has very few reads
+
+# manually transfer data to the created folder
+mkdir -p ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018
+mkdir -p bam; mkdir -p bw; mkdir -p raw; # raw will contain data from 2 sequencing runs (10.08.18 and 09.09.18)
+
+# manually transfering fastq files to the folder raw
+# from the Desktop
+# terminal locally
+cd Desktop 
+for f in `ls ARD090918_ChIP-seq-1/FASTQ_Generation_*/ARDseq*/*_R1_001.fastq.gz`; do
+  scp -r $f daria@tycho.sund.root.ku.dk:~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/raw/.
+done
+
+# on the server
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018
+mkdir -p ~/data/temp_NOBACKUP/August; myTemp=~/data/temp_NOBACKUP/August
+for f in `ls raw/*_R1_001.fastq.gz`; do   
+   name=$(echo -en "${f%%.*}" | awk '{split($1,a,"_S"); print a[1]}')
+   label=$(basename $name)
+   echo -en "$label\n"
+   zcat $f >> $myTemp/$label.merged.fastq
+done
+
+# number of reads: 
+myTemp=~/data/temp_NOBACKUP/August
+for f in `ls raw/*_R1_001.fastq.gz`; do
+  name=$(echo -en "${f%%.*}" | awk '{split($1,a,"_S"); print a[1]}')
+  count=$(cat $myTemp/$name.merged.fastq | wc -l)
+  echo -en "$name\t$count\n"
+done >> raw_reads_counts.txt
+
+screen -R mapping
+# do not have gz files - cat on files 
+# will map to hg19 as all Fantom data is for hg19 + motifs
+cd ~/data/projects/BRIC_data/Alex/ChIP-seq/H3K4me3_THP1
+myTemp=~/data/temp_NOBACKUP
+hg19=/k/genomes/hg19/index/bowtie_canonical/hg19 # somehow index in my directory was not working
+for name in K3SD2-H3K4me3-1 K3SD2-H3K4me3-2 THP1-H3K4me3-1 THP1-H3K4me3-2 THP1-input; do
+  echo -en $name
+  cat $myTemp/$name.merged.fastq | bowtie -p 5 -q -m 1 -v 3 --sam --best --strata --quiet $hg19 - > $myTemp/$name.sam
+done
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
