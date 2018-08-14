@@ -1907,10 +1907,11 @@ for f in `ls $myTemp/*merged.fastq`; do
 done
 
 ###### making bam files (duplicates removed)
-### making bam files
+### making bam files, for myTemp=~/data/temp_NOBACKUP/August2 and myTemp=~/data/temp_NOBACKUP/August
+### all files will be combined in bam folder
 screen -R bam
 cd ~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/
-myTemp=~/data/temp_NOBACKUP/August
+myTemp=~/data/temp_NOBACKUP/August2
 for f in `ls $myTemp/*sam`; do
   sample=$(basename ${f%%.*})
   echo -en "$sample\n"
@@ -1921,18 +1922,23 @@ for f in `ls $myTemp/*sam`; do
   rm $myTemp/${sample}.sam $myTemp/${sample}_nonSorted.bam $myTemp/${sample}.bam
 done
 # moving everything to the bam folder
-newFolder=~~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/bam
-myTemp=~/data/temp_NOBACKUP/August
-for f in `ls $myTemp/*sam`; do
+newFolder=~/data/projects/BRIC_data/Alex/ChIP-seq/chromatin_marks_August_2018/bam
+myTemp=~/data/temp_NOBACKUP/August2
+for f in `ls $myTemp/*bam`; do
   sample=$(basename ${f%%.*})
   echo -en "$sample\n"
   mv $myTemp/${sample}.nodup.bam  $newFolder/.
   mv $myTemp/${sample}.nodup.bam.bai  $newFolder/.
 done 
 
+############
+# counting mapped reads for all files in bam folder
 
-
-
+for f in `ls bam/*.nodup.bam`; do
+  sample=$(basename ${f%%.*})
+  counts=$(samtools idxstats bam/$sample.nodup.bam | awk '{total+=$3}END{print total}')
+  echo -en '$sample\n$total'
+done >> reads_unique_mapped.txt
 
 
 
